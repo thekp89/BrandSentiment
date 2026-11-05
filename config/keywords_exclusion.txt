@@ -1,5 +1,5 @@
 # Palabras clave de exclusión (Solo Spam/Porn/Casinos)
-# Se han eliminado filtros de Gaming/Discord para permitir hallazgos de Shadow IT o grupos de alumnos.
+# Se han eliminado filtros de Gaming/Discord para permitir hallazgos de Shadow IT o comunidades de usuarios.
 
 # --- APUESTAS / CASINOS ---
 casino

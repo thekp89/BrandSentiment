@@ -330,7 +330,7 @@ def cargar_whitelist_dinamica(ruta_targets):
     try:
         with open(ruta_targets, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            # data es { "Grupo_A": { "targets": [...] } }
+            # data es { "Grupo": { "targets": [...] } }
             for grupo in data.values():
                 targets = grupo.get("targets", [])
                 for tgt in targets:
@@ -1339,12 +1339,16 @@ def main():
         if primera_entidad:
             mask_propio = df['Entidad'] == primera_entidad
 
-    segmentos = [
-        ("Panorama_General", df),
-        ("Tipo_A", df[ (df['Tipo_Competidor'] == 'Grupo_A') | mask_propio ]),
-        ("Tipo_B", df[ (df['Tipo_Competidor'] == 'Grupo_B') | mask_propio ]),
-        ("Tipo_C", df[ (df['Tipo_Competidor'] == 'Grupo_C') | mask_propio ]),
-    ]
+    segmentos = [("Panorama_General", df)]
+    if 'Tipo_Competidor' in df.columns:
+        grupos_competidores = [
+            g for g in df['Tipo_Competidor'].dropna().unique()
+            if str(g).strip() and not any(k in str(g).lower() for k in ['propio', 'general', 'nan'])
+        ]
+        for grupo in grupos_competidores:
+            safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', str(grupo))
+            df_grupo = df[(df['Tipo_Competidor'] == grupo) | mask_propio]
+            segmentos.append((safe_name, df_grupo))
     
     for nombre_seg, df_seg in segmentos:
         if df_seg.empty:

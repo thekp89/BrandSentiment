@@ -650,7 +650,7 @@ def main():
     parser.add_argument("--entidad", default="Desconocido", help="Nombre de la entidad (e.g. MiMarca, Competencia)")
     parser.add_argument("--dominio", default=None, help="Dominio objetivo para búsqueda de fugas")
     parser.add_argument("--keywords_seguridad", default="config/keywords_riesgo_seguridad.txt", help="Archivo de keywords de seguridad")
-    parser.add_argument("--tipo", default="General", help="Tipo de Competidor (Grupo_A, Grupo_B, etc.)")
+    parser.add_argument("--tipo", default="General", help="Tipo de Competidor (ej. Competencia_Directa, etc.)")
     parser.add_argument("--no-cache", action="store_true", help="Ignorar caché y forzar búsquedas frescas")
     parser.add_argument("--relaxed", action="store_true", help="Bypass validation/filtering (for AI-driven scans)")
     

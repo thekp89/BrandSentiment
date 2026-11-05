@@ -54,7 +54,7 @@ ilegal,-1.0
 clausurado,-1.0
 sin validez,-1.0
 titulo falso,-1.0
-escuela patito,-1.0
+servicio patito,-1.0
 sin rvoe,-1.0
 rvoe falso,-1.0
 
@@ -121,9 +121,6 @@ actualizado,0.7
 
 # --- NEUTRALIZADORES Y RELLENO (Evitar ruido) ---
 clase,0.0
-profesor,0.0
-alumno,0.0
-universidad,0.0
 inscripcion,0.0
 semestre,0.0
 informacion,0.0

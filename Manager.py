@@ -454,7 +454,7 @@ def full_scan_workflow(num_results, lexicon_file, backlink_iterations=4, save_ra
     
     # 1. Recolección Multi-Target
     # 1. Recolección Multi-Target Modular
-    # Ahora targets es un dict { "Grupo_A": { ... }, ... }
+    # targets es un dict { "Grupo": { ... }, ... }
     for grupo_nombre, grupo_data in targets.items():
         desc = grupo_data.get("descripcion", "")
         print(f"\n>>> Procesando {grupo_nombre}: {desc}")

@@ -947,6 +947,89 @@ def targets_page():
         active_module='targets'
     )
 
+@app.route('/api/groups/save', methods=['POST'])
+def api_groups_save():
+    """Create or update a competition group/table."""
+    data = request.json or {}
+    group_key = data.get('group_key', '').strip()
+    descripcion = data.get('descripcion', '').strip()
+    original_key = data.get('original_key', '').strip()
+
+    if not group_key:
+        return jsonify({'success': False, 'error': 'El nombre o identificador de la tabla es requerido'}), 400
+
+    # Clean key: spaces to underscore, alphanumeric, underscore and dash only
+    clean_key = re.sub(r'[^a-zA-Z0-9_-]', '_', group_key).strip('_')
+    if not clean_key:
+        return jsonify({'success': False, 'error': 'Identificador de tabla inválido'}), 400
+
+    targets_path = os.path.join(CONFIG_DIR, 'targets.json')
+    targets_data = {}
+    if os.path.exists(targets_path):
+        try:
+            with open(targets_path, 'r', encoding='utf-8') as f:
+                targets_data = json.load(f)
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'Error al leer targets: {e}'}), 500
+
+    # Renaming existing group
+    if original_key and original_key in targets_data:
+        if original_key == 'Grupo_Propio' and clean_key != 'Grupo_Propio':
+            clean_key = 'Grupo_Propio'  # Keep Grupo_Propio key for brand identity anchor
+
+        existing_targets = targets_data[original_key].get('targets', [])
+        if original_key != clean_key:
+            del targets_data[original_key]
+
+        targets_data[clean_key] = {
+            'descripcion': descripcion or f'Tabla de {clean_key}',
+            'targets': existing_targets
+        }
+    else:
+        # Create new group if doesn't exist
+        if clean_key not in targets_data:
+            targets_data[clean_key] = {
+                'descripcion': descripcion or f'Tabla de {clean_key}',
+                'targets': []
+            }
+        else:
+            targets_data[clean_key]['descripcion'] = descripcion or targets_data[clean_key].get('descripcion', '')
+
+    try:
+        with open(targets_path, 'w', encoding='utf-8') as f:
+            json.dump(targets_data, f, indent=4, ensure_ascii=False)
+        return jsonify({'success': True, 'message': 'Tabla de competencia guardada correctamente', 'group_key': clean_key})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Error al guardar tabla: {e}'}), 500
+
+@app.route('/api/groups/delete', methods=['DELETE', 'POST'])
+def api_groups_delete():
+    """Delete a whole competition group/table."""
+    group_key = request.args.get('group_key') or (request.json and request.json.get('group_key'))
+    if not group_key:
+        return jsonify({'success': False, 'error': 'Parámetro group_key requerido'}), 400
+
+    if group_key == 'Grupo_Propio':
+        return jsonify({'success': False, 'error': 'No se puede eliminar la tabla de la Marca Propia (Identidad)'}), 400
+
+    targets_path = os.path.join(CONFIG_DIR, 'targets.json')
+    if not os.path.exists(targets_path):
+        return jsonify({'success': False, 'error': 'Archivo targets.json no encontrado'}), 404
+
+    try:
+        with open(targets_path, 'r', encoding='utf-8') as f:
+            targets_data = json.load(f)
+
+        if group_key in targets_data:
+            del targets_data[group_key]
+            with open(targets_path, 'w', encoding='utf-8') as f:
+                json.dump(targets_data, f, indent=4, ensure_ascii=False)
+            return jsonify({'success': True, 'message': f'Tabla {group_key} eliminada correctamente'})
+        else:
+            return jsonify({'success': False, 'error': f'Tabla {group_key} no encontrada'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/targets/save', methods=['POST'])
 def api_targets_save():
     """Add or update a target."""
@@ -954,7 +1037,7 @@ def api_targets_save():
     group = data.get('group', '').strip()
     name = data.get('name', '').strip()
     domain = data.get('domain', '').strip()
-    busqueda = data.get('busqueda', [])
+    busqueda = data.get('busqueda') or data.get('keywords', [])
     original_group = data.get('original_group', '').strip()
     original_name = data.get('original_name', '').strip()
 

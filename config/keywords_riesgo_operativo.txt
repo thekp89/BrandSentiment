@@ -15,7 +15,8 @@ plataforma
 campus virtual
 NEO LMS
 moodle
-portal de alumnos
+portal de usuarios
+portal de clientes
 no puedo entrar
 acceso denegado
 sistema basura
