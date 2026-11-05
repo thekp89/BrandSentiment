@@ -88,6 +88,10 @@
             <span id="statusMessage">Listo para escanear</span>
         </div>
 
+        <button type="button" id="cancelScanBtn" class="btn" style="display: none; width: 100%; margin-top: 0.75rem; background: rgba(247, 118, 142, 0.15); border: 1px solid #f7768e; color: #f7768e; font-weight: 500; cursor: pointer;" onclick="cancelCurrentScan()">
+            ⏹ Cancelar Escaneo en Curso
+        </button>
+
         <div class="progress-container" id="progressContainer" style="display: none;">
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill" style="width: 0%"></div>
@@ -121,6 +125,7 @@
     const progressPercent = document.getElementById('progressPercent');
     const currentTarget = document.getElementById('currentTarget');
     const resumeBtn = document.getElementById('resumeBtn');
+    const cancelScanBtn = document.getElementById('cancelScanBtn');
     const latestMasterInfo = document.getElementById('latestMasterInfo');
     const latestMasterTime = document.getElementById('latestMasterTime');
     const ollamaModel = document.getElementById('ollamaModel');
@@ -134,6 +139,27 @@
     checkLatestMaster();
     loadAiModels();
     loadRecoleccionFiles();
+
+    async function cancelCurrentScan() {
+        if (!confirm('¿Estás seguro de que deseas detener el escaneo en curso?')) return;
+        try {
+            cancelScanBtn.disabled = true;
+            cancelScanBtn.textContent = 'Deteniendo...';
+            const resp = await fetch('/api/scan/cancel', { method: 'POST' });
+            const res = await resp.json();
+            if (res.success) {
+                statusMessage.textContent = 'Escaneo cancelado';
+                setIdleState();
+            } else {
+                alert(res.message || res.error || 'No se pudo cancelar el escaneo');
+            }
+        } catch (err) {
+            alert('Error de conexión al cancelar: ' + err.message);
+        } finally {
+            cancelScanBtn.disabled = false;
+            cancelScanBtn.textContent = '⏹ Cancelar Escaneo en Curso';
+        }
+    }
 
     form.addEventListener('submit', (e) => startScan(e, 'new'));
     resumeBtn.addEventListener('click', (e) => startScan(e, 'resume'));
@@ -187,6 +213,7 @@
         statusBox.classList.remove('idle');
         statusMessage.textContent = 'Ejecutando escaneo...';
         progressContainer.style.display = 'block';
+        cancelScanBtn.style.display = 'block';
         logConsole.innerHTML = '';
     }
 
@@ -198,6 +225,7 @@
         statusDot.classList.add('idle');
         statusBox.classList.remove('running');
         statusBox.classList.add('idle');
+        cancelScanBtn.style.display = 'none';
         checkLatestMaster(); // Refresh latest master on idle
     }
 

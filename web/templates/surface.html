@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block title %}Superficie de Ataque y Monitoreo de Dominio{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+        <h1 class="page-title">🌐 Superficie de Ataque y Salud de Dominio</h1>
+        <p class="page-subtitle">Auditoría no invasiva en vivo: Certificados SSL/TLS, DNS, registros SPF/DMARC y cabeceras HTTP</p>
+    </div>
+</div>
+
+<!-- Search / Domain Audit Input -->
+<div class="card" style="margin-bottom: 2rem;">
+    <form id="surfaceAuditForm" onsubmit="handleAuditSubmit(event)" style="display: flex; gap: 1rem; align-items: center;">
+        <div style="flex: 1;">
+            <label class="form-label" style="font-size: 0.85rem; margin-bottom: 0.35rem;">Dominio a Inspeccionar</label>
+            <input type="text" id="targetDomainInput" class="form-input" style="font-size: 1rem; font-family: monospace;" value="{{ default_domain }}" placeholder="ej: mimarca.com" required>
+        </div>
+        <button type="submit" id="auditBtn" class="btn btn-primary" style="padding: 0.75rem 1.5rem; margin-top: 1.5rem;">
+            🔍 Iniciar Auditoría
+        </button>
+    </form>
+</div>
+
+<!-- Loading State -->
+<div id="auditLoading" style="display: none; text-align: center; padding: 3rem 1rem;">
+    <div style="display: inline-block; width: 40px; height: 40px; border: 3px solid rgba(122,162,247,0.2); border-top-color: #7aa2f7; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+    <p style="margin-top: 1rem; color: #94a3b8; font-size: 0.95rem;">Auditando infraestructura, certificados y cabeceras...</p>
+</div>
+
+<style>
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
+
+<!-- Results Container -->
+<div id="auditResults" style="display: none;">
+    <!-- Top Score Overview -->
+    <div style="display: grid; grid-template-columns: 1fr 3fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+        <div class="card" style="text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+            <div style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Postura Global</div>
+            <div id="healthScoreDisplay" style="font-size: 3.5rem; font-weight: 700; color: #9ece6a; line-height: 1;">--</div>
+            <div id="gradeBadge" style="margin-top: 0.5rem; display: inline-block; padding: 0.2rem 0.8rem; border-radius: 20px; font-weight: 600; font-size: 0.9rem; background: rgba(158,206,106,0.2); color: #9ece6a;">Grado A</div>
+            <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.75rem;">Calculado en base a SSL, DNS y Cabeceras</div>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; justify-content: space-around;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.75rem;">
+                <span style="color: #94a3b8;">Dominio Auditado:</span>
+                <strong id="resDomain" style="color: white; font-family: monospace; font-size: 1.1rem;">--</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.75rem;">
+                <span style="color: #94a3b8;">Estado del Certificado SSL:</span>
+                <span id="resSslStatus" class="badge" style="background: rgba(158,206,106,0.15); color: #9ece6a; padding: 0.25rem 0.75rem; border-radius: 4px; font-weight: 600;">--</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #94a3b8;">Fecha de la Auditoría:</span>
+                <span id="resTimestamp" style="color: #c0caf5; font-size: 0.85rem;">--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3 Pillars Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem;">
+        <!-- Pillar 1: SSL/TLS -->
+        <div class="card">
+            <h3 style="color: white; margin-top: 0; margin-bottom: 1rem; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+                🔒 Certificado SSL / TLS
+            </h3>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.85rem;">
+                <div>
+                    <span style="color: #94a3b8; display: block;">Emisor (CA):</span>
+                    <strong id="sslIssuer" style="color: white;">--</strong>
+                </div>
+                <div>
+                    <span style="color: #94a3b8; display: block;">Días Restantes de Validez:</span>
+                    <strong id="sslDays" style="color: #7aa2f7; font-size: 1.1rem;">--</strong>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                    <div>
+                        <span style="color: #94a3b8; display: block;">Válido Desde:</span>
+                        <span id="sslFrom" style="color: #c0caf5;">--</span>
+                    </div>
+                    <div>
+                        <span style="color: #94a3b8; display: block;">Expira el:</span>
+                        <span id="sslTo" style="color: #c0caf5;">--</span>
+                    </div>
+                </div>
+                <div>
+                    <span style="color: #94a3b8; display: block;">Protocolo Negociado:</span>
+                    <span id="sslProto" style="color: #c0caf5; font-family: monospace;">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pillar 2: DNS & Mail Security -->
+        <div class="card">
+            <h3 style="color: white; margin-top: 0; margin-bottom: 1rem; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+                ✉️ DNS y Autenticación de Correo
+            </h3>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.85rem;">
+                <div>
+                    <span style="color: #94a3b8; display: block; margin-bottom: 0.2rem;">Protección SPF (Sender Policy):</span>
+                    <span id="spfBadge" class="badge" style="padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 500;">--</span>
+                    <div id="spfRecord" style="font-family: monospace; font-size: 0.75rem; color: #94a3b8; margin-top: 0.3rem; word-break: break-all;"></div>
+                </div>
+                <div>
+                    <span style="color: #94a3b8; display: block; margin-bottom: 0.2rem;">Protección DMARC (Antiphishing):</span>
+                    <span id="dmarcBadge" class="badge" style="padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 500;">--</span>
+                    <div id="dmarcRecord" style="font-family: monospace; font-size: 0.75rem; color: #94a3b8; margin-top: 0.3rem; word-break: break-all;"></div>
+                </div>
+                <div>
+                    <span style="color: #94a3b8; display: block; margin-bottom: 0.2rem;">Servidores de Correo MX:</span>
+                    <div id="mxList" style="color: #c0caf5; font-family: monospace; font-size: 0.8rem;"></div>
+                </div>
+                <div>
+                    <span style="color: #94a3b8; display: block; margin-bottom: 0.2rem;">Direcciones IP (A Records):</span>
+                    <div id="ipList" style="color: #c0caf5; font-family: monospace; font-size: 0.8rem;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pillar 3: HTTP Security Headers -->
+        <div class="card">
+            <h3 style="color: white; margin-top: 0; margin-bottom: 1rem; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+                🛡️ Cabeceras HTTP de Seguridad
+            </h3>
+            <div id="headersList" style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem;">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function handleAuditSubmit(e) {
+    if (e) e.preventDefault();
+    const domain = document.getElementById('targetDomainInput').value.trim();
+    if (!domain) return;
+
+    document.getElementById('auditResults').style.display = 'none';
+    document.getElementById('auditLoading').style.display = 'block';
+    document.getElementById('auditBtn').disabled = true;
+
+    try {
+        const res = await fetch('/api/surface/audit', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({domain: domain})
+        });
+        const data = await res.json();
+        if (data.success) {
+            renderAuditResults(data.audit);
+        } else {
+            alert('Error al auditar: ' + (data.error || 'Fallo desconocido'));
+        }
+    } catch (err) {
+        alert('Error conectando con el servidor: ' + err.message);
+    } finally {
+        document.getElementById('auditLoading').style.display = 'none';
+        document.getElementById('auditBtn').disabled = false;
+    }
+}
+
+function renderAuditResults(audit) {
+    document.getElementById('resDomain').textContent = audit.domain;
+    document.getElementById('resTimestamp').textContent = audit.scanned_at;
+
+    // Health Score & Grade
+    const score = audit.health_score || 0;
+    const scoreEl = document.getElementById('healthScoreDisplay');
+    const gradeEl = document.getElementById('gradeBadge');
+    scoreEl.textContent = score;
+
+    let color = '#9ece6a';
+    let grade = 'A';
+    if (score < 40) { color = '#f7768e'; grade = 'F'; }
+    else if (score < 60) { color = '#e0af68'; grade = 'C'; }
+    else if (score < 80) { color = '#7aa2f7'; grade = 'B'; }
+    else { color = '#9ece6a'; grade = 'A'; }
+
+    scoreEl.style.color = color;
+    gradeEl.style.color = color;
+    gradeEl.style.background = `${color}25`;
+    gradeEl.textContent = `Grado ${grade}`;
+
+    // SSL
+    const ssl = audit.ssl || {};
+    const sslStatusEl = document.getElementById('resSslStatus');
+    sslStatusEl.textContent = ssl.status || 'Sin SSL';
+    sslStatusEl.style.color = ssl.has_ssl && ssl.status === 'Válido' ? '#9ece6a' : '#f7768e';
+    sslStatusEl.style.background = (ssl.has_ssl && ssl.status === 'Válido' ? '#9ece6a' : '#f7768e') + '25';
+
+    document.getElementById('sslIssuer').textContent = ssl.issuer || 'N/A';
+    document.getElementById('sslDays').textContent = ssl.days_left !== null ? `${ssl.days_left} días` : 'N/A';
+    document.getElementById('sslFrom').textContent = ssl.valid_from || 'N/A';
+    document.getElementById('sslTo').textContent = ssl.valid_to || 'N/A';
+    document.getElementById('sslProto').textContent = ssl.tls_version || 'N/A';
+
+    // DNS & Mail
+    const dns = audit.dns || {};
+    const spfEl = document.getElementById('spfBadge');
+    if (dns.has_spf) {
+        spfEl.textContent = '✓ Configurado';
+        spfEl.style.color = '#9ece6a';
+        spfEl.style.background = '#9ece6a20';
+        document.getElementById('spfRecord').textContent = dns.spf_record || '';
+    } else {
+        spfEl.textContent = '✗ No Detectado (Vulnerable a Spoofing)';
+        spfEl.style.color = '#f7768e';
+        spfEl.style.background = '#f7768e20';
+        document.getElementById('spfRecord').textContent = '';
+    }
+
+    const dmarcEl = document.getElementById('dmarcBadge');
+    if (dns.has_dmarc) {
+        dmarcEl.textContent = '✓ Configurado';
+        dmarcEl.style.color = '#9ece6a';
+        dmarcEl.style.background = '#9ece6a20';
+        document.getElementById('dmarcRecord').textContent = dns.dmarc_record || '';
+    } else {
+        dmarcEl.textContent = '✗ No Detectado (Sin Política de Rechazo)';
+        dmarcEl.style.color = '#f7768e';
+        dmarcEl.style.background = '#f7768e20';
+        document.getElementById('dmarcRecord').textContent = '';
+    }
+
+    const mxList = document.getElementById('mxList');
+    mxList.innerHTML = (dns.mx_records || []).map(m => `<div>• ${m}</div>`).join('') || '<span style="color:#64748b">Sin registros MX</span>';
+
+    const ipList = document.getElementById('ipList');
+    ipList.innerHTML = (dns.ip_addresses || []).map(ip => `<div>• ${ip}</div>`).join('') || '<span style="color:#64748b">No resuelto</span>';
+
+    // Headers
+    const headers = audit.http_headers || {};
+    const headersContainer = document.getElementById('headersList');
+    headersContainer.innerHTML = '';
+
+    const expected = [
+        "Strict-Transport-Security",
+        "Content-Security-Policy",
+        "X-Frame-Options",
+        "X-Content-Type-Options",
+        "Referrer-Policy"
+    ];
+
+    expected.forEach(h => {
+        const present = headers.headers && headers.headers[h];
+        const val = present ? headers.headers[h] : null;
+
+        const row = document.createElement('div');
+        row.style.padding = '0.5rem';
+        row.style.background = 'rgba(255,255,255,0.02)';
+        row.style.borderRadius = '4px';
+        row.style.display = 'flex';
+        row.style.justifyContent = 'space-between';
+        row.style.alignItems = 'center';
+
+        row.innerHTML = `
+            <div>
+                <span style="color: white; font-weight: 500;">${h}</span>
+                ${val ? `<div style="font-family: monospace; font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">${val.substring(0, 45)}...</div>` : ''}
+            </div>
+            <span style="color: ${present ? '#9ece6a' : '#f7768e'}; font-weight: 600; font-size: 0.8rem;">
+                ${present ? '✓ Presente' : '✗ Falta'}
+            </span>
+        `;
+        headersContainer.appendChild(row);
+    });
+
+    document.getElementById('auditResults').style.display = 'block';
+}
+
+// Auto audit on load if input has default domain
+document.addEventListener('DOMContentLoaded', () => {
+    const defaultDom = document.getElementById('targetDomainInput').value.trim();
+    if (defaultDom && defaultDom !== 'example.com') {
+        handleAuditSubmit(null);
+    }
+});
+</script>
+{% endblock %}

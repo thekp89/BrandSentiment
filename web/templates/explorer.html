@@ -102,13 +102,21 @@
         </div>
     </div>
 
-    <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+    <div style="display: flex; gap: 1rem; margin-top: 1rem; align-items: center; flex-wrap: wrap;">
         <button type="button" class="btn btn-primary" onclick="applyFilters()">
             Aplicar Filtros
         </button>
-        <button type="button" class="btn btn-success" onclick="exportCSV()">
-            Exportar CSV
-        </button>
+        <div style="display: flex; gap: 0.5rem; margin-left: auto; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary" onclick="exportCSV()" title="Exportar vista actual en CSV">
+                📄 Exportar CSV (Filtrado)
+            </button>
+            <a href="/api/export/xlsx/{{ scan_name }}" class="btn btn-secondary" style="background: rgba(158, 206, 106, 0.15); border: 1px solid #9ece6a; color: #9ece6a;" title="Descargar conjunto completo en Excel">
+                📊 Exportar Excel (.xlsx)
+            </a>
+            <a href="/api/export/json/{{ scan_name }}" class="btn btn-secondary" style="background: rgba(187, 154, 247, 0.15); border: 1px solid #bb9af7; color: #bb9af7;" title="Descargar JSON">
+                💾 Exportar JSON
+            </a>
+        </div>
     </div>
 </div>
 

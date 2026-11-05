@@ -810,13 +810,34 @@ def generar_timeline(df, output_dir):
 
 def enviar_alerta_consolidada(incidentes):
     """
-    Envia un unico email con todos los hallazgos criticos del escaneo.
+    Dispara alertas multicanal (Slack, Discord, Telegram, Webhooks y SMTP).
     """
     if not incidentes:
         return
 
     logging.warning(f"!!! DISPARANDO ALERTA CONSOLIDADA: {len(incidentes)} incidentes !!!")
-    print(f"\n[!] ENVIANDO REPORTE DE SEGURIDAD ({len(incidentes)} hallazgos)...")
+    print(f"\n[!] ENVIANDO ALERTAS DE SEGURIDAD ({len(incidentes)} hallazgos)...")
+    
+    # 1. Alertas Webhook Multicanal
+    try:
+        from alerts import dispatch_alerts
+        resumen_txt = "\n".join([f"• {inc.get('razon', 'Alerta')}: {inc.get('comentario', '')[:120]}" for inc in incidentes[:5]])
+        if len(incidentes) > 5:
+            resumen_txt += f"\n... y {len(incidentes) - 5} incidentes adicionales."
+        first_link = incidentes[0].get("link") if incidentes else None
+        webhook_res = dispatch_alerts(
+            title=f"Incidentes Críticos Detectados ({len(incidentes)})",
+            details=resumen_txt,
+            severity="CRÍTICO",
+            link=first_link
+        )
+        for ch, status in webhook_res.items():
+            if status.get("success"):
+                print(f"    (Webhook {ch} enviado exitosamente)")
+            else:
+                print(f"    (X Fallo webhook {ch}: {status.get('message')})")
+    except Exception as e:
+        logging.error(f"Error despachando webhooks multicanal: {e}")
     
     smtp_server = os.getenv("SMTP_SERVER", "smtp.example.com")
     smtp_port = int(os.getenv("SMTP_PORT", 587))

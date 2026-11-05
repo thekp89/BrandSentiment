@@ -80,6 +80,14 @@
                     class="nav-link {% if request.endpoint == 'report_dashboard' %}active{% endif %}">
                     <span>📄 Generador de Reportes</span>
                 </a>
+                <a href="{{ url_for('targets_page') }}"
+                    class="nav-link {% if request.endpoint == 'targets_page' %}active{% endif %}">
+                    <span>🎯 Gestión de Marcas</span>
+                </a>
+                <a href="{{ url_for('surface_page') }}"
+                    class="nav-link {% if request.endpoint == 'surface_page' %}active{% endif %}">
+                    <span>🌐 Superficie de Ataque</span>
+                </a>
             </div>
             {% elif active_module == 'spiderfoot' %}
             <!-- SpiderFoot Module Nav -->

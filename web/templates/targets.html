@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% block title %}Gestión de Marcas y Objetivos{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+        <h1 class="page-title">🎯 Gestión de Marcas y Objetivos</h1>
+        <p class="page-subtitle">Configura tu marca propia, competidores, fuentes oficiales y canales de alertas en tiempo real</p>
+    </div>
+    <div>
+        <button class="btn btn-primary" onclick="openAddTargetModal()">+ Agregar Objetivo</button>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+    <!-- Left: Targets List -->
+    <div>
+        {% for grupo_key, grupo in targets_data.items() %}
+        <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid {% if grupo_key == 'Grupo_Propio' %}#7aa2f7{% else %}#bb9af7{% endif %};">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div>
+                    <h3 style="margin: 0; color: white; font-size: 1.15rem;">
+                        {% if grupo_key == 'Grupo_Propio' %}🏢 Marca Propia (Identidad){% else %}⚔️ {{ grupo_key }} - {{ grupo.descripcion }}{% endif %}
+                    </h3>
+                    <p style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.85rem;">{{ grupo.descripcion }}</p>
+                </div>
+                <span class="badge" style="background: rgba(122, 162, 247, 0.15); color: #7aa2f7; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.75rem;">
+                    {{ grupo.targets|length }} Objetivo(s)
+                </span>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                {% for tgt in grupo.targets %}
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.05); padding: 1rem; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <strong style="color: white; font-size: 1rem;">{{ tgt.nombre }}</strong>
+                            {% if tgt.dominio %}
+                            <span style="font-size: 0.8rem; color: #7aa2f7; background: rgba(122,162,247,0.1); padding: 0.15rem 0.4rem; border-radius: 3px;">
+                                🌐 {{ tgt.dominio }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        <div style="margin-top: 0.35rem; color: #94a3b8; font-size: 0.8rem;">
+                            <strong>Búsqueda:</strong> {{ tgt.busqueda|join(', ') }}
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick='openEditTargetModal({{ grupo_key|tojson }}, {{ tgt|tojson }})'>Editar</button>
+                        {% if grupo_key != 'Grupo_Propio' or grupo.targets|length > 1 %}
+                        <button class="btn btn-danger" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; background: rgba(247,118,142,0.2); color: #f7768e; border: 1px solid rgba(247,118,142,0.3);" onclick="deleteTarget('{{ grupo_key }}', '{{ tgt.nombre }}')">Eliminar</button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Right: Official Sources & Webhook Channels -->
+    <div>
+        <!-- Official Sources -->
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <h3 style="color: white; margin-top: 0; margin-bottom: 1rem; font-size: 1.1rem;">🛡️ Fuentes Oficiales</h3>
+            <form id="officialSourcesForm">
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label" style="font-size: 0.85rem;">Dominios Oficiales (uno por línea)</label>
+                    <textarea id="officialDomains" class="form-input" rows="3" style="font-family: monospace; font-size: 0.85rem;" placeholder="ej: mimarca.com">{{ official_sources.dominios_oficiales|join('\n') }}</textarea>
+                </div>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label" style="font-size: 0.85rem;">Cuentas Oficiales de Redes (una por línea)</label>
+                    <textarea id="officialAccounts" class="form-input" rows="4" style="font-family: monospace; font-size: 0.85rem;" placeholder="ej: twitter.com/mimarca">{{ official_sources.cuentas_oficiales|join('\n') }}</textarea>
+                </div>
+                <button type="button" class="btn btn-primary" style="width: 100%;" onclick="saveOfficialSources()">Guardar Fuentes Oficiales</button>
+            </form>
+        </div>
+
+        <!-- Alert Channels Status & Test -->
+        <div class="card">
+            <h3 style="color: white; margin-top: 0; margin-bottom: 1rem; font-size: 1.1rem;">🔔 Canales de Alerta Activos</h3>
+            <p style="color: #94a3b8; font-size: 0.8rem; margin-bottom: 1rem;">Configura las variables en <code>.env</code> para habilitar webhooks en tiempo real.</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 4px;">
+                    <span>Slack Webhook</span>
+                    <span style="color: {% if alert_status.slack %}#9ece6a{% else %}#64748b{% endif %}; font-weight: 500;">
+                        {% if alert_status.slack %}● Activo{% else %}○ No configurado{% endif %}
+                    </span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 4px;">
+                    <span>Discord Webhook</span>
+                    <span style="color: {% if alert_status.discord %}#9ece6a{% else %}#64748b{% endif %}; font-weight: 500;">
+                        {% if alert_status.discord %}● Activo{% else %}○ No configurado{% endif %}
+                    </span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 4px;">
+                    <span>Telegram Bot</span>
+                    <span style="color: {% if alert_status.telegram %}#9ece6a{% else %}#64748b{% endif %}; font-weight: 500;">
+                        {% if alert_status.telegram %}● Activo{% else %}○ No configurado{% endif %}
+                    </span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border-radius: 4px;">
+                    <span>Email SMTP</span>
+                    <span style="color: {% if alert_status.smtp %}#9ece6a{% else %}#64748b{% endif %}; font-weight: 500;">
+                        {% if alert_status.smtp %}● Activo{% else %}○ No configurado{% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <button class="btn btn-secondary" style="width: 100%; border: 1px solid rgba(255,255,255,0.15);" onclick="sendTestAlert()">Enviar Alerta de Prueba</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add / Edit Target -->
+<div id="targetModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div class="card" style="width: 500px; max-width: 90%; background: #1a1b26; border: 1px solid rgba(255,255,255,0.1);">
+        <h3 id="modalTitle" style="color: white; margin-top: 0; margin-bottom: 1.25rem;">Agregar Objetivo</h3>
+        
+        <form id="targetForm" onsubmit="handleTargetSubmit(event)">
+            <input type="hidden" id="editOriginalGroup" value="">
+            <input type="hidden" id="editOriginalName" value="">
+            
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label class="form-label">Grupo</label>
+                <select id="targetGroup" class="form-input" style="background: #16161e; color: white;" required>
+                    {% for grupo_key in targets_data.keys() %}
+                    <option value="{{ grupo_key }}">{{ grupo_key }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label class="form-label">Nombre de la Marca / Entidad</label>
+                <input type="text" id="targetName" class="form-input" required placeholder="ej: MiMarca">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label class="form-label">Dominio Web (sin https://)</label>
+                <input type="text" id="targetDomain" class="form-input" placeholder="ej: mimarca.com">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <label class="form-label">Términos de Búsqueda (separados por coma)</label>
+                <input type="text" id="targetKeywords" class="form-input" required placeholder="ej: MiMarca, MiMarca Oficial, mimarca.com">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeTargetModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Guardar Objetivo</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openAddTargetModal() {
+    document.getElementById('modalTitle').textContent = "Agregar Objetivo";
+    document.getElementById('editOriginalGroup').value = "";
+    document.getElementById('editOriginalName').value = "";
+    document.getElementById('targetName').value = "";
+    document.getElementById('targetDomain').value = "";
+    document.getElementById('targetKeywords').value = "";
+    document.getElementById('targetModal').style.display = 'flex';
+}
+
+function openEditTargetModal(group, target) {
+    document.getElementById('modalTitle').textContent = "Editar Objetivo: " + target.nombre;
+    document.getElementById('editOriginalGroup').value = group;
+    document.getElementById('editOriginalName').value = target.nombre;
+    document.getElementById('targetGroup').value = group;
+    document.getElementById('targetName').value = target.nombre;
+    document.getElementById('targetDomain').value = target.dominio || "";
+    document.getElementById('targetKeywords').value = (target.busqueda || []).join(', ');
+    document.getElementById('targetModal').style.display = 'flex';
+}
+
+function closeTargetModal() {
+    document.getElementById('targetModal').style.display = 'none';
+}
+
+async function handleTargetSubmit(e) {
+    e.preventDefault();
+    const group = document.getElementById('targetGroup').value;
+    const name = document.getElementById('targetName').value.trim();
+    const domain = document.getElementById('targetDomain').value.trim();
+    const keywords = document.getElementById('targetKeywords').value.split(',').map(k => k.trim()).filter(k => k);
+    const origGroup = document.getElementById('editOriginalGroup').value;
+    const origName = document.getElementById('editOriginalName').value;
+
+    const payload = {
+        group: group,
+        name: name,
+        domain: domain,
+        keywords: keywords,
+        original_group: origGroup,
+        original_name: origName
+    };
+
+    try {
+        const res = await fetch('/api/targets/save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (result.success) {
+            window.location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'No se pudo guardar el objetivo'));
+        }
+    } catch (err) {
+        alert('Error de conexión: ' + err.message);
+    }
+}
+
+async function deleteTarget(group, name) {
+    if (!confirm(`¿Eliminar definitivamente el objetivo "${name}" del grupo "${group}"?`)) return;
+
+    try {
+        const res = await fetch(`/api/targets/delete?group=${encodeURIComponent(group)}&name=${encodeURIComponent(name)}`, {
+            method: 'DELETE'
+        });
+        const result = await res.json();
+        if (result.success) {
+            window.location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'No se pudo eliminar'));
+        }
+    } catch (err) {
+        alert('Error de conexión: ' + err.message);
+    }
+}
+
+async function saveOfficialSources() {
+    const domains = document.getElementById('officialDomains').value.split('\n').map(d => d.trim()).filter(d => d);
+    const accounts = document.getElementById('officialAccounts').value.split('\n').map(a => a.trim()).filter(a => a);
+
+    try {
+        const res = await fetch('/api/official_sources/save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({dominios_oficiales: domains, cuentas_oficiales: accounts})
+        });
+        const result = await res.json();
+        if (result.success) {
+            alert('Fuentes oficiales actualizadas correctamente.');
+        } else {
+            alert('Error: ' + result.error);
+        }
+    } catch (err) {
+        alert('Error de conexión: ' + err.message);
+    }
+}
+
+async function sendTestAlert() {
+    try {
+        const res = await fetch('/api/alerts/test', {method: 'POST'});
+        const result = await res.json();
+        let msg = 'Resultado del envío de alertas:\n';
+        for (const [ch, st] of Object.entries(result.results || {})) {
+            msg += `• ${ch}: ${st.success ? 'Enviado OK' : 'Fallo (' + st.message + ')'}\n`;
+        }
+        if (Object.keys(result.results || {}).length === 0) {
+            msg = 'No hay canales de alerta configurados en .env (ej. SLACK_WEBHOOK_URL, DISCORD_WEBHOOK_URL, etc.)';
+        }
+        alert(msg);
+    } catch (err) {
+        alert('Error probando alertas: ' + err.message);
+    }
+}
+</script>
+{% endblock %}

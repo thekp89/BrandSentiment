@@ -20,8 +20,11 @@ import ollama
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import io
 from Forensics import ForensicProcessor
 from Manager import run_full_sentiment_scan
+from alerts import dispatch_alerts
+from surface import audit_domain_surface
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'brand-sentinel-2026')
@@ -70,7 +73,9 @@ try:
 except Exception as e:
     print(f"Warning: Could not initialize Forensics DB: {e}")
 
-# Global scan state
+# Global scan process and state
+current_scan_process = None
+
 scan_status = {
     'running': False,
     'progress': 0,
@@ -903,6 +908,244 @@ def data_explorer():
                            filter_options=filter_options,
                            active_module='sentiment')
 
+def get_alert_channels_status():
+    """Check configuration status of alert notification channels."""
+    return {
+        'slack': bool(os.getenv("SLACK_WEBHOOK_URL")),
+        'discord': bool(os.getenv("DISCORD_WEBHOOK_URL")),
+        'telegram': bool(os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID")),
+        'smtp': bool(os.getenv("SMTP_SERVER") and os.getenv("ALERT_EMAIL_TO"))
+    }
+
+@app.route('/targets')
+def targets_page():
+    """Targets and Competitors configuration page."""
+    targets_path = os.path.join(CONFIG_DIR, 'targets.json')
+    official_path = os.path.join(CONFIG_DIR, 'official_sources.json')
+    
+    targets_data = {}
+    if os.path.exists(targets_path):
+        try:
+            with open(targets_path, 'r', encoding='utf-8') as f:
+                targets_data = json.load(f)
+        except Exception as e:
+            print(f"Error loading targets.json: {e}")
+            
+    official_sources = {'dominios_oficiales': [], 'cuentas_oficiales': []}
+    if os.path.exists(official_path):
+        try:
+            with open(official_path, 'r', encoding='utf-8') as f:
+                official_sources = json.load(f)
+        except Exception as e:
+            print(f"Error loading official_sources.json: {e}")
+
+    return render_template(
+        'targets.html',
+        targets_data=targets_data,
+        official_sources=official_sources,
+        alert_status=get_alert_channels_status(),
+        active_module='targets'
+    )
+
+@app.route('/api/targets/save', methods=['POST'])
+def api_targets_save():
+    """Add or update a target."""
+    data = request.json or {}
+    group = data.get('group', '').strip()
+    name = data.get('name', '').strip()
+    domain = data.get('domain', '').strip()
+    busqueda = data.get('busqueda', [])
+    original_group = data.get('original_group', '').strip()
+    original_name = data.get('original_name', '').strip()
+
+    if not group or not name:
+        return jsonify({'success': False, 'error': 'El grupo y el nombre son requeridos'}), 400
+
+    targets_path = os.path.join(CONFIG_DIR, 'targets.json')
+    targets_data = {}
+    if os.path.exists(targets_path):
+        try:
+            with open(targets_path, 'r', encoding='utf-8') as f:
+                targets_data = json.load(f)
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'Error al leer targets: {e}'}), 500
+
+    # If updating an existing target, remove original first
+    if original_group and original_name and original_group in targets_data:
+        targets_data[original_group]['targets'] = [
+            t for t in targets_data[original_group].get('targets', [])
+            if t.get('nombre') != original_name
+        ]
+
+    # Ensure target group exists
+    if group not in targets_data:
+        targets_data[group] = {
+            'descripcion': f'Grupo {group}',
+            'targets': []
+        }
+
+    # Clean existing target with same name in destination group if any
+    targets_data[group]['targets'] = [
+        t for t in targets_data[group].get('targets', [])
+        if t.get('nombre') != name
+    ]
+
+    # Append updated/new target
+    new_target = {
+        'nombre': name,
+        'dominio': domain,
+        'busqueda': busqueda if isinstance(busqueda, list) else [b.strip() for b in str(busqueda).split(',') if b.strip()]
+    }
+    targets_data[group]['targets'].append(new_target)
+
+    try:
+        with open(targets_path, 'w', encoding='utf-8') as f:
+            json.dump(targets_data, f, indent=4, ensure_ascii=False)
+        return jsonify({'success': True, 'message': 'Objetivo guardado exitosamente'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Error al guardar: {e}'}), 500
+
+@app.route('/api/targets/delete', methods=['DELETE', 'POST'])
+def api_targets_delete():
+    """Delete a target from configuration."""
+    group = request.args.get('group') or (request.json and request.json.get('group'))
+    name = request.args.get('name') or (request.json and request.json.get('name'))
+
+    if not group or not name:
+        return jsonify({'success': False, 'error': 'Parámetros group y name requeridos'}), 400
+
+    targets_path = os.path.join(CONFIG_DIR, 'targets.json')
+    if not os.path.exists(targets_path):
+        return jsonify({'success': False, 'error': 'Archivo targets.json no encontrado'}), 404
+
+    try:
+        with open(targets_path, 'r', encoding='utf-8') as f:
+            targets_data = json.load(f)
+
+        if group in targets_data:
+            targets_data[group]['targets'] = [
+                t for t in targets_data[group].get('targets', [])
+                if t.get('nombre') != name
+            ]
+            with open(targets_path, 'w', encoding='utf-8') as f:
+                json.dump(targets_data, f, indent=4, ensure_ascii=False)
+            return jsonify({'success': True, 'message': 'Objetivo eliminado correctamente'})
+        else:
+            return jsonify({'success': False, 'error': f'Grupo {group} no encontrado'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/official_sources/save', methods=['POST'])
+def api_official_sources_save():
+    """Save official domains and social media accounts."""
+    data = request.json or {}
+    domains = data.get('dominios_oficiales', [])
+    accounts = data.get('cuentas_oficiales', [])
+
+    official_path = os.path.join(CONFIG_DIR, 'official_sources.json')
+    content = {
+        'dominios_oficiales': domains,
+        'cuentas_oficiales': accounts
+    }
+    try:
+        with open(official_path, 'w', encoding='utf-8') as f:
+            json.dump(content, f, indent=4, ensure_ascii=False)
+        return jsonify({'success': True, 'message': 'Fuentes oficiales actualizadas'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/surface')
+def surface_page():
+    """Attack Surface and Domain Security page."""
+    default_domain = "example.com"
+    targets_path = os.path.join(CONFIG_DIR, 'targets.json')
+    if os.path.exists(targets_path):
+        try:
+            with open(targets_path, 'r', encoding='utf-8') as f:
+                tdata = json.load(f)
+                for g in tdata.values():
+                    for tgt in g.get('targets', []):
+                        if tgt.get('dominio'):
+                            default_domain = tgt['dominio']
+                            break
+                    if default_domain != "example.com":
+                        break
+        except Exception:
+            pass
+
+    return render_template('surface.html', default_domain=default_domain, active_module='surface')
+
+@app.route('/api/surface/audit', methods=['POST'])
+def api_surface_audit():
+    """Run an attack surface audit on a domain."""
+    data = request.json or {}
+    domain = data.get('domain', '').strip()
+    if not domain:
+        return jsonify({'success': False, 'error': 'Dominio no provisto'}), 400
+
+    try:
+        audit_res = audit_domain_surface(domain)
+        return jsonify({'success': True, 'audit': audit_res})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/alerts/test', methods=['POST'])
+def api_alerts_test():
+    """Test webhook notifications across active channels."""
+    try:
+        results = dispatch_alerts(
+            title="Prueba de Alerta Brand Sentinel",
+            details="Mensaje de verificación de canal de alertas emitido desde el panel de control.",
+            severity="INFO"
+        )
+        return jsonify({'success': True, 'results': results})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/export/<fmt>/<scan_name>')
+def api_export_scan(fmt, scan_name):
+    """Export scan results in CSV, JSON, or Excel format."""
+    safe_scan = secure_filename(scan_name)
+    scan_dir = os.path.join(REPORTES_DIR, safe_scan)
+    if not os.path.exists(scan_dir):
+        abort(404, description="Escaneo no encontrado")
+
+    records, _ = load_all_scan_data(safe_scan)
+    if not records:
+        csv_files = [f for f in os.listdir(scan_dir) if f.endswith('.csv')]
+        if csv_files:
+            df = pd.read_csv(os.path.join(scan_dir, csv_files[0]))
+            records = df.to_dict(orient='records')
+        else:
+            records = []
+
+    df = pd.DataFrame(records)
+
+    fmt = fmt.lower()
+    if fmt == 'json':
+        response = make_response(json.dumps(records, indent=2, ensure_ascii=False))
+        response.headers["Content-Disposition"] = f"attachment; filename={safe_scan}_export.json"
+        response.headers["Content-Type"] = "application/json; charset=utf-8"
+        return response
+    elif fmt == 'csv':
+        csv_buf = io.StringIO()
+        df.to_csv(csv_buf, index=False)
+        response = make_response(csv_buf.getvalue())
+        response.headers["Content-Disposition"] = f"attachment; filename={safe_scan}_export.csv"
+        response.headers["Content-Type"] = "text/csv; charset=utf-8"
+        return response
+    elif fmt in ('xlsx', 'excel'):
+        excel_buf = io.BytesIO()
+        with pd.ExcelWriter(excel_buf, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Resultados')
+        excel_buf.seek(0)
+        response = make_response(excel_buf.getvalue())
+        response.headers["Content-Disposition"] = f"attachment; filename={safe_scan}_export.xlsx"
+        response.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        return response
+    else:
+        return jsonify({'error': f'Formato {fmt} no soportado. Use csv, json o xlsx.'}), 400
+
 @app.route('/api/stats')
 def api_stats():
     """Get dashboard statistics."""
@@ -961,7 +1204,7 @@ def api_start_scan():
     model_name = data.get('model_name')
     
     def run_scan():
-        global scan_status
+        global scan_status, current_scan_process
         scan_status['running'] = True
         scan_status['progress'] = 0
         scan_status['log'] = ['Iniciando escaneo...']
@@ -1031,6 +1274,7 @@ def api_start_scan():
                 bufsize=1,
                 universal_newlines=True
             )
+            current_scan_process = process
             
             line_count = 0
             for line in iter(process.stdout.readline, ''):
@@ -1105,6 +1349,7 @@ def api_start_scan():
             scan_status['log'].append(f"Error: {str(e)}")
             scan_status['message'] = f'Error: {str(e)}'
         finally:
+            current_scan_process = None
             scan_status['running'] = False
     
     thread = threading.Thread(target=run_scan, daemon=True)
@@ -1123,6 +1368,25 @@ def api_scan_status():
         'log': scan_status['log'][-30:],  # Last 30 lines
         'started_at': scan_status['started_at']
     })
+
+@app.route('/api/scan/cancel', methods=['POST'])
+def api_cancel_scan():
+    """Cancel the currently running scan."""
+    global current_scan_process, scan_status
+    if not scan_status['running'] or not current_scan_process:
+        return jsonify({'success': False, 'message': 'No hay ningún escaneo activo para cancelar.'})
+    try:
+        current_scan_process.terminate()
+        try:
+            current_scan_process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            current_scan_process.kill()
+        scan_status['running'] = False
+        scan_status['message'] = 'Escaneo cancelado por el usuario'
+        scan_status['log'].append('=== Escaneo cancelado por el usuario ===')
+        return jsonify({'success': True, 'message': 'Escaneo cancelado correctamente'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/scans')
 def api_scans():
