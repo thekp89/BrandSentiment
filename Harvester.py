@@ -11,10 +11,15 @@ import requests
 import random
 import sqlite3
 import hashlib
-import hashlib
 import unicodedata
 from dotenv import load_dotenv
-from ddgs import DDGS
+try:
+    from ddgs import DDGS
+except ImportError:
+    try:
+        from duckduckgo_search import DDGS
+    except ImportError:
+        DDGS = None
 import concurrent.futures
 
 # Cargar variables de entorno
@@ -698,8 +703,7 @@ def main():
             futures = {
                 executor.submit(recolectar_noticias_google, termino, kw_validacion): "Google News",
                 executor.submit(recolectar_busqueda_web, termino, kw_validacion): "Busqueda Web",
-                executor.submit(recolectar_reddit, termino, kw_validacion): "Reddit",
-                executor.submit(recolectar_twitter, termino): "Twitter (Mock)"
+                executor.submit(recolectar_reddit, termino, kw_validacion): "Reddit"
             }
             
             for future in concurrent.futures.as_completed(futures):

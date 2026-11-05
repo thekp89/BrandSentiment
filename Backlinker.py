@@ -6,7 +6,14 @@ import logging
 import os
 import argparse
 from urllib.parse import urlparse
-from ddgs import DDGS
+import hashlib
+try:
+    from ddgs import DDGS
+except ImportError:
+    try:
+        from duckduckgo_search import DDGS
+    except ImportError:
+        DDGS = None
 
 # Configuración de logs
 if not os.path.exists('logs'): os.makedirs('logs')
@@ -26,9 +33,11 @@ def check_neighbour_jump(domain):
     if domain in bad_neighbours:
         return True, domain
     
-    # Randomly assign a bad neighbour to demo the feature
-    if not domain.endswith((".edu", ".gob", ".edu.mx", ".gob.mx")) and hash(domain) % 20 == 0:
-        return True, "beni-itum.co.il"
+    # Deterministic check for demonstrative co-habitation
+    if not domain.endswith((".edu", ".gob", ".edu.mx", ".gob.mx")):
+        domain_digest = int(hashlib.md5(domain.encode('utf-8', errors='ignore')).hexdigest(), 16)
+        if domain_digest % 20 == 0:
+            return True, "beni-itum.co.il"
         
     return False, None
 
@@ -150,8 +159,7 @@ def recolectar_backlinks(dominio_objetivo, entidad="Desconocido", num_resultados
                     "KRI_Score": kri_score,
                     "KRI_Reasons": kri_reasons
                 })
-                time.sleep(1)
-            except:
+            except Exception:
                 pass
     except Exception as e:
         logging.error(f"Error en Google: {e}")
@@ -179,7 +187,8 @@ def recolectar_backlinks(dominio_objetivo, entidad="Desconocido", num_resultados
                         custom_dork = custom_dork.replace("{TARGET_DOMAIN}", dominio_objetivo)
                         if custom_dork not in queries_ddg:
                             queries_ddg.append(custom_dork)
-        except: pass
+        except Exception as e:
+            logging.debug(f"Error reading dorks file: {e}")
 
     queries_to_run = queries_ddg[:iterations]
     
@@ -222,10 +231,10 @@ def recolectar_backlinks(dominio_objetivo, entidad="Desconocido", num_resultados
                             "KRI_Score": kri_score,
                             "KRI_Reasons": kri_reasons
                         })
-                except:
+                except Exception:
                     pass
-    except:
-        pass
+    except Exception as e:
+        logging.error(f"Error in DuckDuckGo queries: {e}")
 
     return processed_data, raw_data
 

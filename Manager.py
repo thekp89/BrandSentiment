@@ -35,6 +35,26 @@ def get_latest_scan_folder():
         return None
     return max(folders, key=os.path.getctime)
 
+def estimate_dread_score(risk_level, category):
+    base_scores = {
+        "FILTRACION_DATOS": (9, 8, 9, 9, 8),
+        "ATAQUE_DOS": (8, 9, 8, 9, 7),
+        "PHISHING": (8, 7, 8, 8, 8),
+        "DESPRESTIGIO": (6, 6, 7, 7, 7),
+        "RIESGO": (7, 7, 7, 7, 6),
+        "OPINION": (3, 4, 3, 3, 4),
+        "RUIDO": (1, 1, 1, 1, 1)
+    }
+    cat_upper = str(category).upper()
+    d, r, e, a, disc = base_scores.get(cat_upper, (7, 6, 7, 7, 6))
+    if str(risk_level).upper() in ["CRITICO", "CRÍTICO"]:
+        d = max(d, 9)
+        a = max(a, 9)
+    elif str(risk_level).upper() == "ALTO":
+        d = max(d, 7)
+    score = (d + r + e + a + disc) / 5.0
+    return round(score, 1)
+
 def generar_reporte_v2():
     import random
     print("\n[+] Generando Reporte Sentinel V2...")
@@ -117,7 +137,7 @@ def generar_reporte_v2():
         else:
             for i, row in df_critico.iterrows():
                 ai_riesgo = row.get('AI_Risk', 'ALTO')
-                dread_score = round(random.uniform(8.0, 9.9), 1) if ai_riesgo in ["CRITICO", "CRÍTICO"] else round(random.uniform(6.0, 7.9), 1)
+                dread_score = estimate_dread_score(ai_riesgo, row.get('AI_Category', ''))
                 report_content.append(f"**Hallazgo {i+1}:** {row.get('comentario', '')[:100]}...")
                 report_content.append(f"**Puntuación DREAD:** {dread_score} ({ai_riesgo}) - {row.get('AI_Category', 'N/A')}")
                 report_content.append(f"**Acción:** {row.get('AI_Action', 'N/A')}\n")
@@ -179,10 +199,12 @@ def generar_reporte_v2():
         
     print(f"   -> Reporte Sentinel V2 Guardado en: {report_filename}")
 
-def run_harvester(keywords=None, entidad="Desconocido", keywords_file=None, tipo_competidor="General", relaxed=False):
+def run_harvester(keywords=None, entidad="Desconocido", keywords_file=None, tipo_competidor="General", relaxed=False, dominio=None):
     print(f"\n[+] Ejecutando Harvester para {entidad} ({tipo_competidor})...")
     logging.info(f"Iniciando Harvester para {entidad}")
     cmd = [sys.executable, "Harvester.py", "--entidad", entidad, "--tipo", tipo_competidor]
+    if dominio:
+        cmd.extend(["--dominio", dominio])
     
     if relaxed:
         cmd.append("--relaxed")
@@ -449,12 +471,11 @@ def full_scan_workflow(num_results, lexicon_file, backlink_iterations=4, save_ra
             busqueda = tgt.get("busqueda", [])
             
             # Harvester
-            # Pasamos los términos de búsqueda como keywords
-            h_out = run_harvester(keywords=busqueda, entidad=nombre, tipo_competidor=grupo_nombre, relaxed=relaxed)
+            dominio = tgt.get("dominio")
+            h_out = run_harvester(keywords=busqueda, entidad=nombre, tipo_competidor=grupo_nombre, relaxed=relaxed, dominio=dominio)
             if h_out: collected_files.append(h_out)
 
             # Backlinker
-            dominio = tgt.get("dominio")
             if include_backlinks and dominio:
                 # Ejecutamos backlinker si hay dominio definido y se solicitó
                 b_out = run_backlinker(domain=dominio, entidad=nombre, num_results=num_results, iterations=backlink_iterations)

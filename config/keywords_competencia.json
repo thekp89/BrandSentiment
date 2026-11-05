@@ -1,25 +1,25 @@
 {
     "Grupo_A": [
         "plataforma caída",
-        "moodle error",
-        "título inválido",
+        "error de sistema",
+        "servicio inválido",
         "certificación falsa",
         "ISO 27001",
-        "examen online fallo",
+        "fallo de servicio",
         "soporte técnico",
         "reembolso",
-        "tardanza título"
+        "retraso entrega"
     ],
     "Grupo_B": [
-        "fraude beca",
+        "fraude",
         "profeco",
+        "demanda",
         "huelga",
-        "rvoe",
-        "tuxtla",
+        "estafa",
         "clausura",
-        "maestros falta",
-        "robo campus",
-        "inseguridad zona"
+        "pésimo servicio",
+        "cobro indebido",
+        "quejas clientes"
     ],
     "Grupo_C": [
         "comunicado oficial",

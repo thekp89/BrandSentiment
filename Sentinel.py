@@ -172,7 +172,7 @@ def limpiar_historial_antiguo():
 
 def cargar_lexico(ruta_archivo):
     """
-    Carga un archivo CSV con columnas 'palabra' y 'valor'.
+    Carga un archivo CSV con columnas 'token'/'palabra' y 'valor'.
     El valor debe ser un float entre -1.0 y 1.0.
     """
     global LEXICO_PERSONALIZADO
@@ -180,18 +180,24 @@ def cargar_lexico(ruta_archivo):
         return
     
     try:
-        df_lex = pd.read_csv(ruta_archivo)
-        # Asumiendo columnas 'palabra' y 'valor'
-        if 'palabra' in df_lex.columns and 'valor' in df_lex.columns:
+        df_lex = pd.read_csv(ruta_archivo, comment="#", skip_blank_lines=True)
+        col_token = next((c for c in ["token", "palabra", "word"] if c in df_lex.columns), None)
+        col_valor = next((c for c in ["valor", "score", "value"] if c in df_lex.columns), None)
+        
+        if col_token and col_valor:
             for _, row in df_lex.iterrows():
-                palabra = str(row['palabra']).lower().strip()
+                if pd.isna(row[col_token]) or pd.isna(row[col_valor]):
+                    continue
+                palabra = str(row[col_token]).lower().strip()
+                if not palabra or palabra.startswith("#"):
+                    continue
                 try:
-                    valor = float(row['valor'])
-                    LEXICO_PERSONALIZADO[palabra] = valor
-                except ValueError:
+                    valor = float(row[col_valor])
+                    LEXICO_PERSONALIZADO[palabra] = max(-1.0, min(1.0, valor))
+                except (ValueError, TypeError):
                     pass
-        logging.info(f"Léxico personalizado cargado: {len(LEXICO_PERSONALIZADO)} palabras.")
-        print(f"Léxico personalizado cargado: {len(LEXICO_PERSONALIZADO)} palabras.")
+        logging.info(f"Léxico personalizado cargado: {len(LEXICO_PERSONALIZADO)} tokens.")
+        print(f"Léxico personalizado cargado: {len(LEXICO_PERSONALIZADO)} tokens.")
     except Exception as e:
         logging.error(f"Error cargando léxico: {e}")
 
@@ -506,66 +512,87 @@ def analizar_con_ollama(texto, contexto="sentimiento", model_override=None):
 
 def analizar_sentimiento(texto_limpio):
     """
-    Calcula la polaridad. 
-    Usa léxico personalizado si existe, luego TextBlob, luego fallback.
+    Calcula la polaridad de sentimiento combinando:
+    1. Léxico personalizado (soporte multi-palabra y tokens individuales)
+    2. Fallback heurístico en español con detección de negaciones
+    3. TextBlob y Ollama IA cuando está habilitado
     """
-    # 1. Léxico Personalizado
+    texto_lower = texto_limpio.lower()
+    
+    # 1. Léxico Personalizado (Evalúa frases compuestas y palabras individuales)
     if LEXICO_PERSONALIZADO:
-        score_lex = 0
+        score_lex = 0.0
         hits = 0
-        words = texto_limpio.split()
+        matched_tokens = set()
+        
+        # Evaluar primero frases compuestas (ordenadas de mayor a menor longitud)
+        for token, val in sorted(LEXICO_PERSONALIZADO.items(), key=lambda x: len(x[0]), reverse=True):
+            if " " in token and token in texto_lower:
+                score_lex += val
+                hits += 1
+                matched_tokens.add(token)
+                
+        # Evaluar palabras individuales que no formen parte de una frase ya detectada
+        words = [w.strip(".,?!:;()\"\x27") for w in texto_lower.split()]
         for w in words:
-            w_clean = w.strip(".,?!")
-            if w_clean in LEXICO_PERSONALIZADO:
-                score_lex += LEXICO_PERSONALIZADO[w_clean]
+            if w and w in LEXICO_PERSONALIZADO and w not in matched_tokens:
+                score_lex += LEXICO_PERSONALIZADO[w]
                 hits += 1
         
         if hits > 0:
-            # Promedio simple o suma acotada
             promedio = score_lex / hits
-            # Forzar rango -1 a 1
-            if promedio > 1: promedio = 1.0
-            if promedio < -1: promedio = -1.0
-            
-            polaridad = promedio
-            etiqueta = "Neutro"
-            if polaridad > 0.1: etiqueta = "Positivo"
-            elif polaridad < -0.1: etiqueta = "Negativo"
+            polaridad = max(-1.0, min(1.0, promedio))
+            etiqueta = "Positivo" if polaridad > 0.1 else ("Negativo" if polaridad < -0.1 else "Neutro")
             return polaridad, etiqueta
 
-    analysis = TextBlob(texto_limpio)
-    polaridad = analysis.sentiment.polarity
+    # 2. Análisis con TextBlob (Base)
+    try:
+        analysis = TextBlob(texto_limpio)
+        polaridad = analysis.sentiment.polarity
+    except Exception:
+        polaridad = 0.0
     
-    # 2.5 Ollama (Opcional, si TextBlob es neutro o si se prefiere)
+    # 2.5 Ollama IA (Si está activo y el resultado es ambiguo o neutro)
     if USE_OLLAMA and (abs(polaridad) < 0.1):
         ollama_score = analizar_con_ollama(texto_limpio, "sentimiento")
         if ollama_score is not None:
             polaridad = ollama_score
 
-    # 3. Fallback básico español
+    # 3. Fallback Heurístico Robusto en Español (con soporte de negaciones)
     if polaridad == 0.0:
-        palabras_positivas = ["excelente", "encanta", "buen", "bueno", "bien", "mejor", "gracias", "feliz"]
-        palabras_negativas = ["pésimo", "odio", "mal", "malo", "error", "lento", "horrible", "fatal", "caído"]
+        palabras_positivas = {
+            "excelente": 0.8, "increíble": 0.8, "genial": 0.7, "maravilloso": 0.8,
+            "recomiendo": 0.6, "bueno": 0.5, "buen": 0.5, "bien": 0.4, "mejor": 0.5,
+            "éxito": 0.6, "seguro": 0.5, "confiable": 0.6, "rápido": 0.5, "gracias": 0.4,
+            "feliz": 0.6, "perfecto": 0.8, "satisfecho": 0.6, "calidad": 0.5
+        }
+        palabras_negativas = {
+            "pésimo": -0.8, "horrible": -0.8, "fatal": -0.8, "fraude": -0.9,
+            "estafa": -0.9, "robo": -0.9, "basura": -0.7, "mal": -0.5, "malo": -0.5,
+            "error": -0.5, "falla": -0.6, "lento": -0.5, "caído": -0.7, "queja": -0.5,
+            "inseguro": -0.7, "peor": -0.7, "insatisfecho": -0.7, "incompetente": -0.8
+        }
+        negaciones = {"no", "nunca", "jamas", "jamás", "sin", "tampoco", "nada"}
         
-        score_manual = 0
-        words = texto_limpio.split()
-        for w in words:
-            w = w.strip(".,?!")
+        score_manual = 0.0
+        hits_manual = 0
+        words = [w.strip(".,?!:;()\"\x27") for w in texto_lower.split()]
+        
+        for idx, w in enumerate(words):
+            invierte = (idx > 0 and words[idx - 1] in negaciones)
             if w in palabras_positivas:
-                score_manual += 0.5
+                val = palabras_positivas[w]
+                score_manual += (-val if invierte else val)
+                hits_manual += 1
             elif w in palabras_negativas:
-                score_manual -= 0.5
-        
-        if score_manual > 1.0: score_manual = 1.0
-        if score_manual < -1.0: score_manual = -1.0
-        polaridad = score_manual
+                val = palabras_negativas[w]
+                score_manual += (-val * 0.5 if invierte else val)
+                hits_manual += 1
+                
+        if hits_manual > 0:
+            polaridad = max(-1.0, min(1.0, score_manual / hits_manual))
 
-    etiqueta = "Neutro"
-    if polaridad > 0.1:
-        etiqueta = "Positivo"
-    elif polaridad < -0.1:
-        etiqueta = "Negativo"
-        
+    etiqueta = "Positivo" if polaridad > 0.1 else ("Negativo" if polaridad < -0.1 else "Neutro")
     return polaridad, etiqueta
 
 def generar_reporte(df, output_dir):

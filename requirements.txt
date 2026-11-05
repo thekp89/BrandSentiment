@@ -5,7 +5,7 @@ requests
 beautifulsoup4
 googlesearch-python
 feedparser
-ddgs
+duckduckgo-search
 matplotlib
 python-dotenv
 wordcloud

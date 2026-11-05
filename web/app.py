@@ -10,7 +10,8 @@ import threading
 import sqlite3
 import hashlib
 from datetime import datetime
-from flask import Flask, render_template, jsonify, request, send_from_directory, redirect, url_for, flash, Response, stream_with_context, make_response
+from flask import Flask, render_template, jsonify, request, send_from_directory, redirect, url_for, flash, Response, stream_with_context, make_response, abort
+from werkzeug.utils import secure_filename
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 import pandas as pd
@@ -23,7 +24,7 @@ from Forensics import ForensicProcessor
 from Manager import run_full_sentiment_scan
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'brand-sentinel-2026'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'brand-sentinel-2026')
 
 # --- AUTH CONFIG ---
 login_manager = LoginManager()
@@ -41,11 +42,12 @@ def load_user(user_id):
         return User(id='1')
     return None
 
-# Hardcoded Admin User
+ADMIN_USERNAME = os.getenv('DASHBOARD_USER', 'admin')
+ADMIN_PASSWORD = os.getenv('DASHBOARD_PASS', 'sentinel2026')
 ADMIN_USER = {
     'id': '1',
-    'username': 'admin',
-    'password_hash': generate_password_hash('sentinel2026') 
+    'username': ADMIN_USERNAME,
+    'password_hash': generate_password_hash(ADMIN_PASSWORD)
 }
 
 # Paths
@@ -151,6 +153,8 @@ def login():
             user = User(id=ADMIN_USER['id'])
             login_user(user)
             next_page = request.args.get('next')
+            if next_page and (not next_page.startswith('/') or next_page.startswith('//')):
+                next_page = None
             return redirect(next_page or url_for('dashboard'))
         
         flash('Credenciales incorrectas: Usuario o contraseña inválidos.')
@@ -1033,6 +1037,8 @@ def api_start_scan():
                 if line:
                     line = line.strip()
                     scan_status['log'].append(line)
+                    if len(scan_status['log']) > 300:
+                        scan_status['log'] = scan_status['log'][-300:]
                     line_count += 1
                     
                     if 'INICIANDO FLUJO' in line:
@@ -1168,7 +1174,10 @@ def api_explorer_data(scan_name):
 
 @app.route('/reportes/<path:filename>')
 def serve_report_file(filename):
-    """Serve files from reportes directory."""
+    """Serve files securely from reportes directory."""
+    safe_path = os.path.normpath(os.path.join(REPORTES_DIR, filename))
+    if not safe_path.startswith(os.path.abspath(REPORTES_DIR)):
+        abort(403)
     return send_from_directory(REPORTES_DIR, filename)
 
 @app.route('/api/mention/action', methods=['POST'])
@@ -1355,10 +1364,14 @@ def upload_gsc():
         return jsonify({'success': False, 'error': 'No se encontró la parte del archivo'}), 400
     
     file = request.files['file']
-    if file.filename == '':
+    if not file or file.filename == '':
         return jsonify({'success': False, 'error': 'Ningún archivo seleccionado'}), 400
         
-    upload_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+    safe_name = secure_filename(file.filename)
+    if not safe_name.lower().endswith('.csv'):
+        return jsonify({'success': False, 'error': 'Formato no permitido (solo .csv)'}), 400
+
+    upload_path = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
     file.save(upload_path)
     
     # Start thread
@@ -1366,7 +1379,7 @@ def upload_gsc():
         processor = ForensicProcessor()
         processor.process_scan(upload_path)
         
-    thread = threading.Thread(target=run_scan)
+    thread = threading.Thread(target=run_scan, daemon=True)
     thread.start()
     
     return jsonify({'success': True, 'message': 'Escaneo iniciado en segundo plano'})
@@ -1539,24 +1552,24 @@ def spiderfoot_dashboard():
 @app.route('/spiderfoot/upload', methods=['POST'])
 def spiderfoot_upload():
     if 'file' not in request.files:
-        return jsonify({'success': False, 'error': 'No se seleccionó ningún archivo'})
+        return jsonify({'success': False, 'error': 'No se seleccionó ningún archivo'}), 400
     
     file = request.files['file']
-    if file.filename == '':
-        return jsonify({'success': False, 'error': 'Nombre de archivo vacío'})
+    if not file or file.filename == '':
+        return jsonify({'success': False, 'error': 'Nombre de archivo vacío'}), 400
     
-    if file and file.filename.endswith('.csv'):
-        filename = file.filename
-        # Ensure filename is safe or use timestamp
-        if os.path.exists(os.path.join(SPIDERFOOT_DIR, filename)):
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"{os.path.splitext(filename)[0]}_{timestamp}.csv"
-            
-        filepath = os.path.join(SPIDERFOOT_DIR, filename)
-        file.save(filepath)
-        return jsonify({'success': True, 'message': 'Archivo subido correctamente'})
-    
-    return jsonify({'success': False, 'error': 'Formato no soportado (solo .csv)'})
+    filename = secure_filename(file.filename)
+    if not filename.lower().endswith('.csv'):
+        return jsonify({'success': False, 'error': 'Formato no soportado (solo .csv)'}), 400
+
+    if os.path.exists(os.path.join(SPIDERFOOT_DIR, filename)):
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        name_root, ext = os.path.splitext(filename)
+        filename = f"{name_root}_{timestamp}.csv"
+        
+    filepath = os.path.join(SPIDERFOOT_DIR, filename)
+    file.save(filepath)
+    return jsonify({'success': True, 'message': 'Archivo subido correctamente'})
 
 @app.route('/spiderfoot/scan/<scan_name>')
 def spiderfoot_scan(scan_name):
@@ -1785,7 +1798,7 @@ def generate_report():
                 
                 for item in items:
                     risk = item.get('risk', 'INFO')
-                    if risk in ['HIGH', 'CRITIVE', 'CRÍTICO']:
+                    if risk in ['HIGH', 'CRITICAL', 'CRÍTICO']:
                         cat_high += 1
                         high_risk_count += 1
                         # Add to critical list if option selected
@@ -1911,7 +1924,8 @@ def generate_report():
         
         # Generate PDF using WeasyPrint
         from weasyprint import HTML
-        pdf_bytes = HTML(string=html_content).write_pdf()
+        base_url = request.host_url if request else None
+        pdf_bytes = HTML(string=html_content, base_url=base_url).write_pdf()
         
         # Create Response
         response = make_response(pdf_bytes)

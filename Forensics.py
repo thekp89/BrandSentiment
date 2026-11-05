@@ -221,7 +221,8 @@ class ForensicProcessor:
             if r.status_code == 405: # Method Not Allowed
                 r = requests.get(url, headers=headers, timeout=10, stream=True, verify=False)
             return r.status_code
-        except:
+        except Exception as e:
+            logging.debug(f"Error checking link liveness {url}: {e}")
             return 0
 
     def analyze_context_sentiment(self, text):
@@ -233,7 +234,8 @@ class ForensicProcessor:
             if pol > 0.1: return pol, "Positivo"
             if pol < -0.1: return pol, "Negativo"
             return pol, "Neutro"
-        except:
+        except Exception as e:
+            logging.debug(f"Error checking link liveness {url}: {e}")
             return 0, "Neutro"
 
     def _scrape_passive(self, url):
@@ -306,7 +308,7 @@ class ForensicProcessor:
     def _add_scan_record(self, scan_id, filename, total):
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
-        c.execute("INSERT INTO scans (id, filename, total_links, processed_links, started_at, status) VALUES (?,?,?,?,?,?)",
+        c.execute("INSERT OR REPLACE INTO scans (id, filename, total_links, processed_links, started_at, status) VALUES (?,?,?,?,?,?)",
                   (scan_id, filename, total, 0, datetime.now().isoformat(), 'running'))
         conn.commit()
         conn.close()
@@ -338,7 +340,7 @@ class ForensicProcessor:
         context_data = f"Sentiment: {sentiment} | " + (data['text'][:100] if data['text'] else "")
         reasons_json = json.dumps(kri_reasons)
 
-        c.execute("""INSERT INTO backlinks 
+        c.execute("""INSERT OR REPLACE INTO backlinks 
                   (id, url, target_url, domain, kri_score, status_code, language, created_at, context_excerpt, kri_reasons) 
                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
                   (id, url, target, domain, score, data['status_code'], data['lang'], datetime.now().isoformat(), context_data, reasons_json))
