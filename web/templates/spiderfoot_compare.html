@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Comparación de Escaneos{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div class="header-title">
+        <a href="{{ url_for('spiderfoot_dashboard') }}" class="back-link">← Volver al Dashboard</a>
+        <h1>Comparación de Escaneos</h1>
+        <p class="subtitle">{{ scan1 }} <span style="color: var(--text-secondary); margin: 0 0.5rem;">vs</span> {{ scan2
+            }}</p>
+    </div>
+</div>
+
+<div class="grid-container">
+    {% if not comparison %}
+    <div class="card full-width">
+        <div class="card-body" style="text-align: center; padding: 3rem;">
+            <h3>No se encontraron diferencias</h3>
+            <p style="color: var(--text-secondary);">Ambos escaneos contienen exactamente los mismos datos.</p>
+        </div>
+    </div>
+    {% else %}
+
+    {% for category, changes in comparison.items() %}
+    <div class="card full-width">
+        <div class="card-header">
+            <h3 class="card-title">{{ category }}</h3>
+            <div class="card-actions">
+                {% if changes.new %}<span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">+{{
+                    changes.new|length }} Nuevos</span>{% endif %}
+                {% if changes.removed %}<span class="badge"
+                    style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">-{{ changes.removed|length }}
+                    Eliminados</span>{% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="comparison-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+
+                {% if changes.new %}
+                <div class="comparison-col">
+                    <h4 style="color: #10b981; margin-bottom: 0.5rem; font-size: 0.9rem;">Nuevos Hallazgos</h4>
+                    <ul class="comparison-list new">
+                        {% for item in changes.new %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                {% if changes.removed %}
+                <div class="comparison-col">
+                    <h4 style="color: #ef4444; margin-bottom: 0.5rem; font-size: 0.9rem;">Hallazgos Eliminados</h4>
+                    <ul class="comparison-list removed">
+                        {% for item in changes.removed %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+            </div>
+            {% if changes.common_count > 0 %}
+            <div
+                style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.85rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.5rem;">
+                {{ changes.common_count }} elementos sin cambios.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+    {% endif %}
+</div>
+
+<style>
+    .comparison-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        background: var(--bg-dark);
+        border-radius: 4px;
+        padding: 0.5rem;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .comparison-list li {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.85rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        word-break: break-all;
+    }
+
+    .comparison-list li:last-child {
+        border-bottom: none;
+    }
+
+    .comparison-list.new li {
+        border-left: 2px solid #10b981;
+    }
+
+    .comparison-list.removed li {
+        border-left: 2px solid #ef4444;
+    }
+</style>
+{% endblock %}

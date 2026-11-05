@@ -1,0 +1,30 @@
+# Palabras clave de exclusión (Solo Spam/Porn/Casinos)
+# Se han eliminado filtros de Gaming/Discord para permitir hallazgos de Shadow IT o grupos de alumnos.
+
+# --- APUESTAS / CASINOS ---
+casino
+apuestas
+betting
+slots
+tragamonedas
+ruleta
+blackjack
+poker online
+bono de bienvenida
+ganar dinero rapido
+cryptocurrency
+bitcoin investment
+
+# --- CONTENIDO ADULTO ---
+xxx
+porn
+sexo
+adult dating
+encuentros
+escort
+viagra
+cialis
+
+# --- OTROS ---
+# discord.gg (ELIMINADO: Permitido para encontrar grupos de estudio)
+# minecraft (ELIMINADO)

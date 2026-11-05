@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Generador de Reportes{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div class="header-title">
+        <h1>Generador de Reportes Ejecutivos</h1>
+        <p class="subtitle">Selecciona los módulos y datos para compilar un informe oficial.</p>
+    </div>
+</div>
+
+<div class="grid-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+
+    <!-- Report Configuration Form -->
+    <div class="card full-width" style="grid-column: 1 / -1;">
+        <div class="card-header">
+            <h3 class="card-title">Configuración del Reporte</h3>
+        </div>
+        <div class="card-body">
+            <form action="{{ url_for('generate_report') }}" method="POST" target="_blank">
+
+
+
+                <div class="grid-container"
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+
+                    <!-- Sentiment Section -->
+                    <div
+                        style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                        <h4 style="color: #3b82f6; margin-top: 0;">📡 Análisis de Sentimiento</h4>
+
+                        <div style="margin-bottom: 10px;">
+                            <label class="form-label" style="font-size: 0.85rem; color: #94a3b8;">Objetivo Módulo
+                                Sentimiento</label>
+                            <input type="text" name="sentiment_objective" class="form-control"
+                                style="width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 0.9rem;"
+                                placeholder="Ej. Monitoreo de Marca">
+                        </div>
+
+                        <label class="form-label">Seleccionar Escaneo</label>
+                        <select name="sentiment_scan" class="form-select">
+                            <option value="">-- Omitir esta sección --</option>
+                            {% for scan in sentiment_scans %}
+                            <option value="{{ scan.name }}" {% if loop.first %}selected{% endif %}>
+                                {{ scan.date }} ({{ scan.csv_count }} archivos)
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 5px;">
+                            <label><input type="checkbox" name="sentiment_summary" checked> Resumen Ejecutivo</label>
+                            <label><input type="checkbox" name="sentiment_graphs" checked> Gráficas de
+                                Distribución</label>
+                            <label><input type="checkbox" name="sentiment_top" checked> Top Menciones (Riesgo)</label>
+                        </div>
+                    </div>
+
+                    <!-- SpiderFoot Section -->
+                    <div
+                        style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                        <h4 style="color: #ef4444; margin-top: 0;">🕸️ Ciberinteligencia (SpiderFoot)</h4>
+
+                        <div style="margin-bottom: 10px;">
+                            <label class="form-label" style="font-size: 0.85rem; color: #94a3b8;">Objetivo Módulo
+                                SpiderFoot</label>
+                            <input type="text" name="spiderfoot_objective" class="form-control"
+                                style="width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 0.9rem;"
+                                placeholder="Ej. Investigación de Superficie de Ataque">
+                        </div>
+
+                        <label class="form-label">Seleccionar Escaneo</label>
+                        <select name="spiderfoot_scan" class="form-select">
+                            <option value="">-- Omitir esta sección --</option>
+                            {% for scan in spiderfoot_scans %}
+                            <option value="{{ scan.name }}" {% if loop.first %}selected{% endif %}>
+                                {{ scan.name }} ({{ scan.date }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 5px;">
+                            <label><input type="checkbox" name="spiderfoot_summary" checked> Resumen de
+                                Hallazgos</label>
+                            <label><input type="checkbox" name="spiderfoot_critical" checked> Tabla de
+                                Vulnerabilidades</label>
+                        </div>
+                    </div>
+
+                    <!-- Backlinks Section (formerly Forensics) -->
+                    <div
+                        style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                        <h4 style="color: #10b981; margin-top: 0;">🔍 Análisis de Backlinks (Forense)</h4>
+
+                        <div style="margin-bottom: 10px;">
+                            <label class="form-label" style="font-size: 0.85rem; color: #94a3b8;">Objetivo Módulo
+                                Forense</label>
+                            <input type="text" name="forensics_objective" class="form-control"
+                                style="width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 0.9rem;"
+                                placeholder="Ej. Auditoría de Backlinks Tóxicos">
+                        </div>
+
+                        <label class="form-label">Seleccionar Análisis</label>
+                        <select name="forensics_case" class="form-select">
+                            <option value="">-- Omitir esta sección --</option>
+                            {% for case in forensics_cases %}
+                            <option value="{{ case.id }}" {% if loop.first %}selected{% endif %}>
+                                {{ case.name }} ({{ case.date }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 5px;">
+                            <label><input type="checkbox" name="forensics_summary" checked> Resumen del Caso</label>
+                            <label><input type="checkbox" name="forensics_evidence" checked> Lista de
+                                Evidencias/Backlinks</label>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div style="margin-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1.5rem;">
+                    <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 1rem;">
+                        <input type="checkbox" name="include_graphs" checked style="margin-right: 0.5rem;">
+                        <span style="color: #94a3b8;">Incluir gráficos visuales y resumen de riesgo DREAD</span>
+                    </label>
+
+                    <button type="submit" class="btn btn-primary"
+                        style="padding: 0.75rem 2rem; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>📄 Generar Reporte PDF</span>
+                    </button>
+                    <p style="margin-top: 0.5rem; font-size: 0.8rem; color: #64748b;">El reporte se abrirá en una nueva
+                        pestaña listo para imprimir.</p>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

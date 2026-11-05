@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block title %}Grafo: {{ scan_name }}{% endblock %}
+
+{% block content %}
+<div
+    style="position: relative; height: calc(100vh - 80px); background: #0f172a; overflow: hidden; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+
+    <div id="networkGraph" style="width: 100%; height: 100%;"></div>
+
+    <!-- Graph Controls -->
+    <div
+        style="position: absolute; top: 20px; right: 20px; width: 280px; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(10px); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+        <h4
+            style="margin: 0 0 10px 0; font-size: 0.9rem; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
+            Controles de Visualización</h4>
+
+        <div style="margin-bottom: 10px;">
+            <label style="display: flex; align-items: center; color: #cbd5e1; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="clusterToggle" checked onchange="toggleClustering()"
+                    style="margin-right: 8px;">
+                Agrupar Nodos (Clustering)
+            </label>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+            <label style="display: flex; align-items: center; color: #cbd5e1; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="physicsToggle" onchange="togglePhysics()" style="margin-right: 8px;">
+                Física Activa (Mover)
+            </label>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+            <label style="display: block; color: #94a3b8; font-size: 0.75rem; margin-bottom: 4px;">Filtrar
+                Riesgo</label>
+            <select id="riskFilter" onchange="applyRiskFilter()" class="form-select"
+                style="width: 100%; padding: 4px; font-size: 0.8rem;">
+                <option value="ALL">Ver Todo</option>
+                <option value="HIGH">Solo Alto/Crítico</option>
+                <option value="MEDIUM">Medio y Superior</option>
+            </select>
+        </div>
+
+        <div style="margin-top: 15px;">
+            <input type="text" id="nodeSearch" placeholder="Buscar nodo (IP, Dominio)..." onkeyup="searchNode(event)"
+                style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.2); color: white; font-size: 0.8rem;">
+        </div>
+
+        <div id="statsDisplay" style="margin-top: 15px; color: #64748b; font-size: 0.7rem; text-align: center;">
+            Cargando grafo...
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div style="position: absolute; bottom: 20px; left: 20px; display: flex; gap: 10px; pointer-events: none;">
+        <span class="badge" style="background:#ef4444; color:white;">Alto Riesgo</span>
+        <span class="badge" style="background:#f59e0b; color:white;">Medio</span>
+        <span class="badge" style="background:#10b981; color:white;">Bajo</span>
+        <span class="badge" style="background:#3b82f6; color:white;">Cluster</span>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let network = null;
+    let nodesDataSet = null;
+    let edgesDataSet = null;
+    let rawNodes = {{ graph_data.nodes | tojson }};
+    let rawEdges = {{ graph_data.edges | tojson }};
+
+    document.addEventListener('DOMContentLoaded', function () {
+        initGraph();
+    });
+
+    function initGraph() {
+        const container = document.getElementById('networkGraph');
+        nodesDataSet = new vis.DataSet(rawNodes);
+        edgesDataSet = new vis.DataSet(rawEdges);
+
+        const data = { nodes: nodesDataSet, edges: edgesDataSet };
+
+        const options = {
+            nodes: {
+                shape: 'dot',
+                size: 16,
+                font: { color: '#ffffff', size: 12, strokeWidth: 0, face: 'Inter' },
+                borderWidth: 2
+            },
+            edges: {
+                color: { color: 'rgba(255,255,255,0.1)', highlight: '#3b82f6' },
+                smooth: { type: 'continuous' }
+            },
+            groups: {
+                'Source': { color: { background: '#94a3b8', border: '#64748b' }, size: 20 },
+                'IP Address': { color: { background: '#3b82f6', border: '#2563eb' } },
+                'Domain Name': { color: { background: '#8b5cf6', border: '#7c3aed' }, size: 25 },
+                'Open TCP Port': { color: { background: '#ef4444', border: '#dc2626' }, shape: 'diamond' }
+            },
+            physics: {
+                stabilization: { enabled: true, iterations: 1000 },
+                barnesHut: {
+                    gravitationalConstant: -3000,
+                    springConstant: 0.04,
+                    springLength: 95
+                }
+            },
+            interaction: { hover: true, tooltipDelay: 200, multiselect: true }
+        };
+
+        // Color override logic
+        rawNodes.forEach(node => {
+            let color = '#94a3b8';
+            if (node.risk === 'HIGH' || node.risk === 'CRÍTICO') color = '#ef4444';
+            else if (node.risk === 'MEDIUM' || node.risk === 'ALTO') color = '#f59e0b';
+            else if (node.risk === 'LOW') color = '#10b981';
+
+            nodesDataSet.update({ id: node.id, color: { background: color, border: color } });
+        });
+
+        network = new vis.Network(container, data, options);
+
+        // Post-init actions
+        network.on("stabilizationIterationsDone", function () {
+            network.setOptions({ physics: false }); // Stop physics after stabilize
+            document.getElementById('physicsToggle').checked = false;
+            document.getElementById('statsDisplay').innerText = `${rawNodes.length} Nodos | ${rawEdges.length} Conexiones`;
+            if (document.getElementById('clusterToggle').checked) {
+                performClustering();
+            }
+        });
+
+        network.on("doubleClick", function (params) {
+            if (params.nodes.length == 1) {
+                if (network.isCluster(params.nodes[0]) == true) {
+                    network.openCluster(params.nodes[0]);
+                }
+            }
+        });
+    }
+
+    // --- Graph Features ---
+
+    function togglePhysics() {
+        const enabled = document.getElementById('physicsToggle').checked;
+        network.setOptions({ physics: enabled });
+    }
+
+    function toggleClustering() {
+        const enabled = document.getElementById('clusterToggle').checked;
+        if (enabled) {
+            performClustering();
+        } else {
+            // Open all clusters
+            const clusters = Object.keys(network.body.nodes).filter(id => network.isCluster(id));
+            clusters.forEach(c => network.openCluster(c));
+        }
+    }
+
+    function performClustering() {
+        // Simple clustering by Group (Category)
+        // Check unique groups first
+        const groups = [...new Set(rawNodes.map(n => n.group))];
+
+        groups.forEach(group => {
+            // Skip clustering 'Source' usually, but here maybe safer to cluster everything
+            // if (group === 'Source') return; 
+
+            const clusterOptions = {
+                joinCondition: function (nodeOptions) {
+                    return nodeOptions.group === group;
+                },
+                processProperties: function (clusterOptions, childNodes) {
+                    return {
+                        id: 'cluster_' + group,
+                        label: `${group} (${childNodes.length})`,
+                        color: childNodes[0].color, // Take color of first child
+                        size: 30 + (childNodes.length * 0.5), // Dynamic size
+                        shape: 'hexagon',
+                        font: { size: 14, color: '#fff', strokeWidth: 0 }
+                    }
+                },
+                clusterNodeProperties: { allowSingleNodeCluster: false }
+            };
+            network.cluster(clusterOptions);
+        });
+    }
+
+    function applyRiskFilter() {
+        const level = document.getElementById('riskFilter').value;
+        const currentIds = nodesDataSet.getIds();
+
+        // Unhide all first
+        // Vis.js doesn't have simple hide, we have to filter the DataSet view or update hidden prop
+
+        const updates = rawNodes.map(n => {
+            let visible = true;
+            if (level === 'HIGH') {
+                if (n.risk !== 'HIGH' && n.risk !== 'CRÍTICO') visible = false;
+            } else if (level === 'MEDIUM') {
+                if (n.risk === 'LOW') visible = false;
+            }
+            return { id: n.id, hidden: !visible };
+        });
+
+        nodesDataSet.update(updates);
+    }
+
+    function searchNode(e) {
+        if (e.key === 'Enter') {
+            const query = e.target.value.toLowerCase();
+            const foundNode = rawNodes.find(n => n.label.toLowerCase().includes(query) || n.id.toLowerCase().includes(query));
+
+            if (foundNode) {
+                // Focus on node
+                network.focus(foundNode.id, {
+                    scale: 1.5,
+                    animation: true
+                });
+                network.selectNodes([foundNode.id]);
+            } else {
+                alert('Nodo no encontrado');
+            }
+        }
+    }
+
+</script>
+{% endblock %}

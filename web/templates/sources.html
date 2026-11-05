@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Por Fuente{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Análisis por Fuente</h1>
+        <p class="page-subtitle">Desglose de sentimiento por fuente de datos</p>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">Distribución de Fuente</h3>
+
+    {% if stats.sources_detail %}
+    <div style="margin-top: 1.5rem;">
+        {% for source, details in stats.sources_detail.items() %}
+        <div
+            style="margin-bottom: 2rem; background: #fdfdfd; padding: 1.25rem; border-radius: var(--radius-sm); border: 1px solid #f0f0f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem; align-items: baseline; cursor: pointer;"
+                onclick="openDrillDown('{{ stats.scan_name }}', 'source', '{{ source }}', 'Total')"
+                onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                <span style="font-weight: 600; font-size: 1.1rem; color: var(--foreground);">{{ source }}</span>
+                <span style="color: #6b7280; font-size: 0.9rem; font-weight: 500;">{{ details.Total }} menciones</span>
+            </div>
+
+            <!-- Barra segmentada robusta -->
+            <div class="sentiment-bar-container"
+                style="display: flex; height: 16px; border-radius: 8px; overflow: hidden; background: #f0f0f0; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">
+                {% if details.Total > 0 %}
+                <div class="sentiment-bar positive"
+                    style="width: {{ (details.Positivo / details.Total * 100)|round(1) }}%; height: 100%; transition: width 0.3s;"
+                    title="Positivo: {{ details.Positivo }}"
+                    onclick="openDrillDown('{{ stats.scan_name }}', 'source', '{{ source }}', 'Positivo')"></div>
+                <div class="sentiment-bar neutral"
+                    style="width: {{ (details.Neutro / details.Total * 100)|round(1) }}%; height: 100%; transition: width 0.3s;"
+                    title="Neutro: {{ details.Neutro }}"
+                    onclick="openDrillDown('{{ stats.scan_name }}', 'source', '{{ source }}', 'Neutro')"></div>
+                <div class="sentiment-bar negative"
+                    style="width: {{ (details.Negativo / details.Total * 100)|round(1) }}%; height: 100%; transition: width 0.3s;"
+                    title="Negativo: {{ details.Negativo }}"
+                    onclick="openDrillDown('{{ stats.scan_name }}', 'source', '{{ source }}', 'Negativo')"></div>
+                {% endif %}
+            </div>
+
+            <!-- Indicadores alineados -->
+            <div
+                style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-top: 1rem; font-size: 0.85rem;">
+                <div
+                    style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem; background: rgba(52, 211, 153, 0.08); border-radius: 6px; justify-content: center; color: #065f46; border: 1px solid rgba(52, 211, 153, 0.2);">
+                    <span
+                        style="display: inline-block; width: 10px; height: 10px; background: var(--positive); border-radius: 50%;"></span>
+                    <span><strong>Pos:</strong> {{ (details.Positivo / details.Total * 100)|round(1) if details.Total >
+                        0 else 0 }}%</span>
+                </div>
+                <div
+                    style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem; background: rgba(59, 130, 246, 0.08); border-radius: 6px; justify-content: center; color: #1e40af; border: 1px solid rgba(59, 130, 246, 0.2);">
+                    <span
+                        style="display: inline-block; width: 10px; height: 10px; background: var(--accent-blue); border-radius: 50%;"></span>
+                    <span><strong>Neu:</strong> {{ (details.Neutro / details.Total * 100)|round(1) if details.Total > 0
+                        else 0 }}%</span>
+                </div>
+                <div
+                    style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem; background: rgba(239, 68, 68, 0.08); border-radius: 6px; justify-content: center; color: #991b1b; border: 1px solid rgba(239, 68, 68, 0.2);">
+                    <span
+                        style="display: inline-block; width: 10px; height: 10px; background: var(--negative); border-radius: 50%;"></span>
+                    <span><strong>Neg:</strong> {{ (details.Negativo / details.Total * 100)|round(1) if details.Total >
+                        0 else 0 }}%</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color: #6b7280; margin-top: 1rem;">No hay datos de fuente disponibles. Ejecuta un escaneo primero.</p>
+    {% endif %}
+</div>
+
+<div class="card" style="margin-top: 1.5rem;">
+    <h3 class="card-title">Gráfico de Comparación de Fuentes (por Sentimiento)</h3>
+    <canvas id="sourceChart" height="250"></canvas>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Securely transfer JSON data from Flask to JS -->
+<script id="sources-data" type="application/json">
+{{ stats.sources_detail | tojson | safe }}
+</script>
+
+<script>
+    let sourceDetails = {};
+    try {
+        const dataElement = document.getElementById('sources-data');
+        if (dataElement) {
+            sourceDetails = JSON.parse(dataElement.textContent) || {};
+        }
+    } catch (e) {
+        console.error("Error loading source data:", e);
+    }
+
+    const labels = Object.keys(sourceDetails);
+    const posData = labels.map(l => sourceDetails[l].Positivo || 0);
+    const neuData = labels.map(l => sourceDetails[l].Neutro || 0);
+    const negData = labels.map(l => sourceDetails[l].Negativo || 0);
+
+    const chartCanvas = document.getElementById('sourceChart');
+    if (chartCanvas && typeof Chart !== 'undefined') {
+        const ctx = chartCanvas.getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Positivo',
+                        data: posData,
+                        backgroundColor: '#10b981',
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Neutro',
+                        data: neuData,
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Negativo',
+                        data: negData,
+                        backgroundColor: '#ef4444',
+                        borderRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: { usePointStyle: true, boxWidth: 6 }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
+                scales: {
+                    x: {
+                        stacked: true,
+                        grid: { display: false }
+                    },
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        title: { display: true, text: 'Menciones', font: { weight: 'bold' } }
+                    }
+                },
+                onClick: (evt, elements) => {
+                    if (elements.length > 0) {
+                        const index = elements[0].index;
+                        const datasetIndex = elements[0].datasetIndex;
+                        const source = labels[index];
+                        const sentiment = ['Positivo', 'Neutro', 'Negativo'][datasetIndex];
+                        openDrillDown('{{ stats.scan_name }}', 'source', source, sentiment);
+                    }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

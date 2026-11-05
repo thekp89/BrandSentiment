@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+{% block title %}Explorador de Datos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Explorador de Datos</h1>
+        <p class="page-subtitle">Búsqueda avanzada y filtrado para {{ scan_name }}</p>
+    </div>
+    <div id="resultCount" class="total-badge">
+        <span class="dot blue"></span>
+        <span id="totalCount">Cargando...</span>
+    </div>
+</div>
+
+<!-- Filters Panel -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header">
+        <h3 class="card-title">Filtros</h3>
+        <button type="button" class="btn btn-secondary" onclick="clearFilters()">Limpiar Todo</button>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+        <!-- Search -->
+        <div class="form-group" style="grid-column: span 2;">
+            <label class="form-label">Texto de Búsqueda</label>
+            <input type="text" class="form-input" id="searchInput" placeholder="Buscar en contenido...">
+        </div>
+
+        <!-- Sentiment Filter -->
+        <div class="form-group">
+            <label class="form-label">Sentimiento</label>
+            <select class="form-select" id="sentimentFilter">
+                <option value="">Todos los Sentimientos</option>
+                {% for s in filter_options.sentiments %}
+                <option value="{{ s }}">{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Source Filter -->
+        <div class="form-group">
+            <label class="form-label">Fuente</label>
+            <select class="form-select" id="sourceFilter">
+                <option value="">Todas las Fuentes</option>
+                {% for s in filter_options.sources %}
+                <option value="{{ s }}">{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Entity Filter -->
+        <div class="form-group">
+            <label class="form-label">Entidad</label>
+            <select class="form-select" id="entityFilter">
+                <option value="">Todas las Entidades</option>
+                {% for e in filter_options.entities %}
+                <option value="{{ e }}">{{ e }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Risk Level Filter -->
+        <div class="form-group">
+            <label class="form-label">Nivel de Riesgo</label>
+            <select class="form-select" id="riskFilter">
+                <option value="">Todos los Niveles de Riesgo</option>
+                {% for r in filter_options.risk_levels %}
+                <option value="{{ r }}">{{ r }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Category Filter -->
+        <div class="form-group">
+            <label class="form-label">Categoría IA</label>
+            <select class="form-select" id="categoryFilter">
+                <option value="">Todas las Categorías</option>
+                {% for c in filter_options.categories %}
+                <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Type Filter -->
+        <div class="form-group">
+            <label class="form-label">Tipo de Competidor</label>
+            <select class="form-select" id="typeFilter">
+                <option value="">Todos los Tipos</option>
+                {% for t in filter_options.types %}
+                <option value="{{ t }}">{{ t }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- History Toggle -->
+        <div class="form-group" style="display: flex; align-items: flex-end; padding-bottom: 0.5rem;">
+            <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" id="historyToggle">
+                <span class="toggle-label">Mostrar Historial (Viejos)</span>
+            </label>
+        </div>
+    </div>
+
+    <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+        <button type="button" class="btn btn-primary" onclick="applyFilters()">
+            Aplicar Filtros
+        </button>
+        <button type="button" class="btn btn-success" onclick="exportCSV()">
+            Exportar CSV
+        </button>
+    </div>
+</div>
+
+<style>
+    .historical-row {
+        background-color: rgba(0, 0, 0, 0.2) !important;
+        opacity: 0.8;
+    }
+
+    .badge-history {
+        background-color: #6c757d;
+        color: white;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        margin-right: 0.5rem;
+    }
+</style>
+
+<!-- Results Table -->
+<div class="card">
+    <div class="table-container" style="overflow: auto; max-height: 600px;">
+        <table class="data-table" id="dataTable">
+            <thead id="tableHead">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Entidad</th>
+                    <th>Fuente</th>
+                    <th>Contenido</th>
+                    <th>Sentimiento</th>
+                    <th>Riesgo</th>
+                    <th>Enlace</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr>
+                    <td colspan="7" style="text-align: center;">Cargando datos...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+        <div style="color: #6b7280; font-size: 0.875rem;">
+            Mostrando <span id="showingFrom">0</span>-<span id="showingTo">0</span> de <span id="totalItems">0</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary" id="prevBtn" onclick="prevPage()" disabled>← Ant</button>
+            <span id="pageInfo" style="padding: 0.5rem 1rem;">Página 1</span>
+            <button class="btn btn-secondary" id="nextBtn" onclick="nextPage()">Sig →</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const scanName = '{{ scan_name }}';
+    let currentPage = 1;
+    let totalPages = 1;
+    let currentData = [];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        loadData();
+
+        // Add enter key listener for search
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') applyFilters();
+        });
+    });
+
+    async function loadData() {
+        const includeHistory = document.getElementById('historyToggle').checked;
+        const params = new URLSearchParams({
+            page: currentPage,
+            per_page: 50,
+            sentiment: document.getElementById('sentimentFilter').value,
+            source: document.getElementById('sourceFilter').value,
+            entity: document.getElementById('entityFilter').value,
+            risk: document.getElementById('riskFilter').value,
+            category: document.getElementById('categoryFilter').value,
+            type: document.getElementById('typeFilter').value,
+            search: document.getElementById('searchInput').value,
+            history: includeHistory
+        });
+
+        try {
+            const resp = await fetch(`/api/explorer/${scanName}?${params}`);
+            const result = await resp.json();
+
+            currentData = result.data;
+            totalPages = result.total_pages;
+
+            // Update counts
+            document.getElementById('totalCount').textContent = `${result.total} Resultados`;
+            document.getElementById('totalItems').textContent = result.total;
+            document.getElementById('showingFrom').textContent = ((currentPage - 1) * 50) + 1;
+            document.getElementById('showingTo').textContent = Math.min(currentPage * 50, result.total);
+            document.getElementById('pageInfo').textContent = `Página ${currentPage} de ${totalPages}`;
+
+            // Update pagination buttons
+            document.getElementById('prevBtn').disabled = currentPage <= 1;
+            document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+
+            renderTable(result.data);
+        } catch (err) {
+            console.error(err);
+            document.getElementById('tableBody').innerHTML =
+                '<tr><td colspan="7" style="text-align: center; color: var(--negative);">Error al cargar datos</td></tr>';
+        }
+    }
+
+    function renderTable(data) {
+        const tbody = document.getElementById('tableBody');
+
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">No se encontraron resultados</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.map(row => {
+            const sentiment = row.Etiqueta || '';
+            const sentimentClass = sentiment.toLowerCase();
+            const content = (row.comentario || row.Texto_Limpio || '').substring(0, 150);
+            const link = row.link || '';
+            const isHistorical = row.is_historical || false;
+            const historicalBadge = isHistorical ? `<span class="badge-history" title="Origen: ${row.scan_origin}">HISTÓRICO</span>` : '';
+            const rowClass = isHistorical ? 'historical-row' : '';
+
+            return `
+        <tr class="${rowClass}">
+            <td style="white-space: nowrap;">
+                ${historicalBadge}
+                ${row.fecha || 'N/A'}
+            </td>
+            <td>${row.Entidad || ''}</td>
+            <td>${row.Fuente || ''}</td>
+            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(row.comentario || '')}">${escapeHtml(content)}...</td>
+            <td><span class="badge ${sentimentClass === 'positivo' ? 'positive' : sentimentClass === 'negativo' ? 'negative' : 'neutral'}">${sentiment}</span></td>
+            <td>${row.Nivel_Riesgo || row.AI_Risk || ''}</td>
+            <td>${link ? `<a href="${link}" target="_blank" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Enlace</a>` : ''}</td>
+        </tr>`;
+        }).join('');
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function applyFilters() {
+        currentPage = 1;
+        loadData();
+    }
+
+    function clearFilters() {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('sentimentFilter').value = '';
+        document.getElementById('sourceFilter').value = '';
+        document.getElementById('entityFilter').value = '';
+        document.getElementById('riskFilter').value = '';
+        document.getElementById('categoryFilter').value = '';
+        document.getElementById('typeFilter').value = '';
+        applyFilters();
+    }
+
+    function prevPage() {
+        if (currentPage > 1) {
+            currentPage--;
+            loadData();
+        }
+    }
+
+    function nextPage() {
+        if (currentPage < totalPages) {
+            currentPage++;
+            loadData();
+        }
+    }
+
+    function exportCSV() {
+        // Export currently filtered data
+        if (!currentData || currentData.length === 0) {
+            alert('No hay datos para exportar');
+            return;
+        }
+
+        const headers = ['fecha', 'Entidad', 'Fuente', 'comentario', 'Etiqueta', 'Nivel_Riesgo', 'link'];
+        const csvContent = [
+            headers.join(','),
+            ...currentData.map(row =>
+                headers.map(h => `"${(row[h] || '').toString().replace(/"/g, '""')}"`).join(',')
+            )
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `datos_filtrados_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+    }
+</script>
+{% endblock %}

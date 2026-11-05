@@ -1,0 +1,34 @@
+{
+    "Grupo_A": [
+        "plataforma caída",
+        "moodle error",
+        "título inválido",
+        "certificación falsa",
+        "ISO 27001",
+        "examen online fallo",
+        "soporte técnico",
+        "reembolso",
+        "tardanza título"
+    ],
+    "Grupo_B": [
+        "fraude beca",
+        "profeco",
+        "huelga",
+        "rvoe",
+        "tuxtla",
+        "clausura",
+        "maestros falta",
+        "robo campus",
+        "inseguridad zona"
+    ],
+    "Grupo_C": [
+        "comunicado oficial",
+        "filtración datos",
+        "ataque cibernético",
+        "ransomware",
+        "hackeo",
+        "vulnerabilidad",
+        "base de datos",
+        "protesta"
+    ]
+}

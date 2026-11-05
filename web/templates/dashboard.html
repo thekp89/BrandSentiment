@@ -1,0 +1,433 @@
+{% extends "base.html" %}
+{% block title %}Resumen General{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Resumen Ejecutivo</h1>
+        <p class="page-subtitle">Análisis de sentimiento de alto nivel sobre {{ stats.total_mentions }} publicaciones
+            rastreadas.</p>
+    </div>
+    <div class="total-badge">
+        <span class="dot blue"></span>
+        {{ stats.total_mentions }} Publicaciones Totales
+    </div>
+</div>
+
+<!-- Metric Cards Row -->
+<div class="metric-cards">
+    <div class="metric-card">
+        <div class="metric-label">Polaridad Promedio</div>
+        <div class="metric-value">
+            {{ stats.avg_polarity }}
+            {% if stats.avg_polarity > 0 %}
+            <span class="metric-change positive">+{{ stats.avg_polarity }}%</span>
+            {% elif stats.avg_polarity < 0 %} <span class="metric-change negative">{{ stats.avg_polarity }}%</span>
+                {% endif %}
+        </div>
+        <div class="metric-bar">
+            <div class="metric-bar-fill blue" style="width: {{ (stats.avg_polarity + 1) * 50 }}%"></div>
+        </div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-label">Tasa de Alto Riesgo</div>
+        <div class="metric-value">{{ stats.risk_rate }}%</div>
+        <div class="metric-bar">
+            <div class="metric-bar-fill orange" style="width: {{ stats.risk_rate }}%"></div>
+        </div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-label">Sentimiento Positivo</div>
+        <div class="metric-value">{{ stats.positive_rate }}%</div>
+        <div class="metric-bar">
+            <div class="metric-bar-fill green" style="width: {{ stats.positive_rate }}%"></div>
+        </div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-label">Alertas Críticas</div>
+        <div class="metric-value">{{ stats.high_risk }}</div>
+        <div class="metric-bar">
+            <div class="metric-bar-fill red" style="width: {{ [stats.high_risk, 100]|min }}%"></div>
+        </div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-label">Backlinks Totales</div>
+        <div class="metric-value">{{ stats.backlinks_count }}</div>
+        <div class="metric-bar">
+            <div class="metric-bar-fill purple" style="width: {{ [stats.backlinks_count, 100]|min }}%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Grid -->
+<div class="dashboard-grid">
+    <!-- Sentiment Distribution -->
+    <div class="card sentiment-card">
+        <div class="card-header">
+            <h3 class="card-title">Distribución de Sentimiento</h3>
+
+            <div class="filter-controls" style="margin-right: 1rem;">
+                <label class="switch-container">
+                    <input type="checkbox" id="backlinkToggle" onchange="toggleBacklinks()" {% if
+                        request.args.get('exclude_backlinks')=='true' %}checked{% endif %}>
+                    <span class="switch-label">Ocultar Backlinks</span>
+                    <span class="switch-slider"></span>
+                </label>
+            </div>
+
+            <div class="legend">
+                <span class="legend-item clickable" onclick="toggleSentimentRow('Positivo')"
+                    style="cursor: pointer; user-select: none;">
+                    <span class="dot green"></span> Positivo
+                </span>
+                <span class="legend-item clickable" onclick="toggleSentimentRow('Negativo')"
+                    style="cursor: pointer; user-select: none;">
+                    <span class="dot red"></span> Negativo
+                </span>
+                <span class="legend-item clickable" onclick="toggleSentimentRow('Neutro')"
+                    style="cursor: pointer; user-select: none;">
+                    <span class="dot blue"></span> Neutro
+                </span>
+                <span class="legend-item clickable" onclick="toggleSentimentRow('Promocion')"
+                    style="cursor: pointer; user-select: none;">
+                    <span class="dot purple"></span> Promoción
+                </span>
+                <span class="legend-item clickable" onclick="toggleSentimentRow('Ruido')"
+                    style="cursor: pointer; user-select: none;">
+                    <span class="dot gray"></span> Ruido
+                </span>
+                <span class="legend-item"
+                    style="margin-left: 1rem; border-left: 1px solid #f1f5f9; padding-left: 1rem;">
+                    <span class="dot orange"></span> <strong>{{ stats.backlinks_count }} Backlinks</strong>
+                </span>
+            </div>
+        </div>
+
+        <div class="sentiment-bars">
+            {% set total = stats.total_mentions if stats.total_mentions > 0 else 1 %}
+
+            <div class="sentiment-row" data-sentiment="Positivo">
+                <div class="sentiment-label">Positivo ({{ stats.positive }} posts)</div>
+                <div class="sentiment-bar-container">
+                    <div class="sentiment-bar green" style="width: {{ (stats.positive / total * 100)|round(1) }}%"
+                        onclick="openDrillDown('{{ stats.scan_name }}', 'sentiment', 'Positivo', 'Positivo')">
+                    </div>
+                </div>
+                <div class="sentiment-percent">{{ (stats.positive / total * 100)|round(1) }}%</div>
+            </div>
+
+            <div class="sentiment-row" data-sentiment="Promocion">
+                <div class="sentiment-label">Promoción ({{ stats.promocion }} posts)</div>
+                <div class="sentiment-bar-container">
+                    <div class="sentiment-bar purple" style="width: {{ (stats.promocion / total * 100)|round(1) }}%"
+                        onclick="openDrillDown('{{ stats.scan_name }}', 'sentiment', 'Promocion', 'Promocion')">
+                    </div>
+                </div>
+                <div class="sentiment-percent">{{ (stats.promocion / total * 100)|round(1) }}%</div>
+            </div>
+
+            {% if stats.backlinks_count > 0 %}
+            <div class="sentiment-row" data-sentiment="Backlinks">
+                <div class="sentiment-label">Backlinks Externos ({{ stats.backlinks_count }} links)</div>
+                <div class="sentiment-bar-container">
+                    <div class="sentiment-bar orange"
+                        style="width: {{ (stats.backlinks_count / total * 100)|round(1) }}%; background-color: #f97316;"
+                        onclick="location.href='{{ url_for('entities_page', scan=stats.scan_name) }}?backlinks=true'">
+                    </div>
+                </div>
+                <div class="sentiment-percent">{{ (stats.backlinks_count / total * 100)|round(1) }}%</div>
+            </div>
+            {% endif %}
+
+            <div class="sentiment-row" data-sentiment="Ruido">
+                <div class="sentiment-label">Ruido ({{ stats.noise }} posts)</div>
+                <div class="sentiment-bar-container">
+                    <div class="sentiment-bar gray" style="width: {{ (stats.noise / total * 100)|round(1) }}%"
+                        onclick="openDrillDown('{{ stats.scan_name }}', 'sentiment', 'Ruido', 'Ruido')"></div>
+                </div>
+                <div class="sentiment-percent">{{ (stats.noise / total * 100)|round(1) }}%</div>
+            </div>
+
+            <div class="sentiment-row" data-sentiment="Negativo">
+                <div class="sentiment-label">Negativo ({{ stats.negative }} posts)</div>
+                <div class="sentiment-bar-container">
+                    <div class="sentiment-bar red" style="width: {{ (stats.negative / total * 100)|round(1) }}%"
+                        onclick="openDrillDown('{{ stats.scan_name }}', 'sentiment', 'Negativo', 'Negativo')"></div>
+                </div>
+                <div class="sentiment-percent">{{ (stats.negative / total * 100)|round(1) }}%</div>
+            </div>
+
+            <div class="sentiment-row" data-sentiment="Neutro">
+                <div class="sentiment-label">Neutro ({{ stats.neutral }} posts)</div>
+                <div class="sentiment-bar-container">
+                    <div class="sentiment-bar blue" style="width: {{ (stats.neutral / total * 100)|round(1) }}%"
+                        onclick="openDrillDown('{{ stats.scan_name }}', 'sentiment', 'Neutro', 'Neutro')"></div>
+                </div>
+                <div class="sentiment-percent">{{ (stats.neutral / total * 100)|round(1) }}%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Source Categories Analysis -->
+    <div class="card category-card dark">
+        <h3 class="card-title">Distribución por Tipo de Fuente</h3>
+        <div style="height: 250px; position: relative; margin-top: 1rem;">
+            <canvas id="sourceCategoriesChart"></canvas>
+        </div>
+        <div class="category-list" style="margin-top: 1rem;">
+            {% for cat, count in stats.source_categories.items() %}
+            <div class="category-item">
+                <div class="category-info">
+                    <span class="category-name">{{ cat }}</span>
+                    <span class="category-count">{{ count }} Publicaciones</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Entity Analysis Card -->
+<div class="card entity-card" style="margin-top: 1.5rem;">
+    <div class="card-header">
+        <h3 class="card-title">Análisis por Entidad</h3>
+    </div>
+
+    <div class="entity-list">
+        {% for entity, details in stats.entities_detail.items() %}
+        <div class="entity-row" data-id="{{ entity }}">
+            <div class="entity-header">
+                <span class="entity-name">{{ entity }}</span>
+                <span class="entity-total">{{ details.Total }} menciones</span>
+            </div>
+            <!-- Mini Sentiment Bars for Entity -->
+            <div class="sentiment-bars mini">
+                {% set total = details.Total if details.Total > 0 else 1 %}
+
+                {% set ifDetailsVal = details.get('Positivo', 0) %}
+                {% if ifDetailsVal > 0 %}
+                <div class="sentiment-bar green" style="width: {{ (ifDetailsVal / total * 100)|round(1) }}%"
+                    data-sentiment="Positivo" title="Positivo: {{ ifDetailsVal }}"></div>
+                {% endif %}
+
+                {% set ifDetailsVal = details.get('Promocion', 0) %}
+                {% if ifDetailsVal > 0 %}
+                <div class="sentiment-bar purple" style="width: {{ (ifDetailsVal / total * 100)|round(1) }}%"
+                    data-sentiment="Promocion" title="Promoción: {{ ifDetailsVal }}"></div>
+                {% endif %}
+
+                {% set ifDetailsVal = details.get('Ruido', 0) %}
+                {% if ifDetailsVal > 0 %}
+                <div class="sentiment-bar gray" style="width: {{ (ifDetailsVal / total * 100)|round(1) }}%"
+                    data-sentiment="Ruido" title="Ruido: {{ ifDetailsVal }}"></div>
+                {% endif %}
+
+                {% set ifDetailsVal = details.get('Negativo', 0) %}
+                {% if ifDetailsVal > 0 %}
+                <div class="sentiment-bar red" style="width: {{ (ifDetailsVal / total * 100)|round(1) }}%"
+                    data-sentiment="Negativo" title="Negativo: {{ ifDetailsVal }}"></div>
+                {% endif %}
+
+                {% set ifDetailsVal = details.get('Neutro', 0) %}
+                {% if ifDetailsVal > 0 %}
+                <div class="sentiment-bar blue" style="width: {{ (ifDetailsVal / total * 100)|round(1) }}%"
+                    data-sentiment="Neutro" title="Neutro: {{ ifDetailsVal }}"></div>
+                {% endif %}
+
+                {% set blVal = details.get('Backlinks', 0) %}
+                {% if blVal > 0 %}
+                <div class="sentiment-bar orange"
+                    style="width: {{ (blVal / total * 100)|round(1) }}%; background-color: #f97316;"
+                    data-sentiment="Backlinks" title="Backlinks: {{ blVal }}"></div>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="entity-row">
+            <span class="entity-name">No hay datos por entidad</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Competitor Type Analysis Card -->
+<div class="card entity-card" style="margin-top: 1.5rem;">
+    <div class="card-header">
+        <h3 class="card-title">Análisis por Tipo de Competencia</h3>
+    </div>
+
+    <div class="entity-list">
+        {% for comp_type, details in stats.types_detail.items() %}
+        <div class="entity-row" data-id="{{ comp_type }}">
+            <div class="entity-header">
+                <span class="entity-name">{{ comp_type }}</span>
+                <span class="entity-total">{{ details.Total }} menciones</span>
+            </div>
+            <!-- Mini Sentiment Bars for Competitor Type -->
+            <div class="sentiment-bars mini">
+                {% set total = details.Total if details.Total > 0 else 1 %}
+
+                {% set ifDetailsVal = details.get('Positivo', 0) %}
+                {% if ifDetailsVal > 0 %}
+                <div class="sentiment-bar green" style="width: {{ (ifDetailsVal / total * 100)|round(1) }}%"
+                    data-sentiment="Positivo" title="Positivo: {{ ifDetailsVal }}"></div>
+                {% endif %}
+
+                {% set ifDetailsVal = details.get('Promocion', 0) %}
+                {% if ifDetailsVal > 0 %}
+                <div class="sentiment-bar purple" style="width: {{ (ifDetailsVal / total * 100)|round(1) }}%"
+                    data-sentiment="Promocion" title="Promoción: {{ ifDetailsVal }}"></div>
+                {% endif %}
+
+                {% set ifDetailsVal = details.get('Ruido', 0) %}
+                {% if ifDetailsVal > 0 %}
+                <div class="sentiment-bar gray" style="width: {{ (ifDetailsVal / total * 100)|round(1) }}%"
+                    data-sentiment="Ruido" title="Ruido: {{ ifDetailsVal }}"></div>
+                {% endif %}
+
+                {% set ifDetailsVal = details.get('Negativo', 0) %}
+                {% if ifDetailsVal > 0 %}
+                <div class="sentiment-bar red" style="width: {{ (ifDetailsVal / total * 100)|round(1) }}%"
+                    data-sentiment="Negativo" title="Negativo: {{ ifDetailsVal }}"></div>
+                {% endif %}
+
+                {% set ifDetailsVal = details.get('Neutro', 0) %}
+                {% if ifDetailsVal > 0 %}
+                <div class="sentiment-bar blue" style="width: {{ (ifDetailsVal / total * 100)|round(1) }}%"
+                    data-sentiment="Neutro" title="Neutro: {{ ifDetailsVal }}"></div>
+                {% endif %}
+
+                {% set blVal = details.get('Backlinks', 0) %}
+                {% if blVal > 0 %}
+                <div class="sentiment-bar orange"
+                    style="width: {{ (blVal / total * 100)|round(1) }}%; background-color: #f97316;"
+                    data-sentiment="Backlinks" title="Backlinks: {{ blVal }}"></div>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="entity-row">
+            <span class="entity-name">No hay datos por tipo de competencia</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Risk Assessment Details Section -->
+<div class="card" style="margin-top: 1.5rem;">
+    <div class="card-header">
+        <h3 class="card-title">Detalles de Evaluación de Riesgo</h3>
+        <a href="{{ url_for('risk_page') }}" class="btn btn-secondary">Ver Reporte Completo</a>
+    </div>
+
+    <div class="risk-summary">
+        <div class="risk-stat">
+            <span class="risk-value critical">{{ stats.high_risk }}</span>
+            <span class="risk-label">Ítems de Alto Riesgo</span>
+        </div>
+        <div class="risk-stat">
+            <span class="risk-value warning">{{ stats.negative }}</span>
+            <span class="risk-label">Menciones Negativas</span>
+        </div>
+        <div class="risk-stat">
+            <span class="risk-value info">{{ stats.total_mentions }}</span>
+            <span class="risk-label">Total Analizado</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // State for sentiment filters
+    const sentimentFilters = {
+        'Positivo': true,
+        'Negativo': true,
+        'Neutro': true,
+        'Promocion': true,
+        'Ruido': true
+    };
+
+    function toggleSentimentRow(sentiment) {
+        // Toggle state
+        sentimentFilters[sentiment] = !sentimentFilters[sentiment];
+
+        // 1. Update Main Dashboard Rows
+        const rows = document.querySelectorAll(`.sentiment-row[data-sentiment="${sentiment}"]`);
+        rows.forEach(row => {
+            row.style.display = sentimentFilters[sentiment] ? 'grid' : 'none';
+        });
+
+        // 2. Update Entity Analysis Bars
+        const entityBars = document.querySelectorAll(`.entity-card .sentiment-bar[data-sentiment="${sentiment}"]`);
+        entityBars.forEach(bar => {
+            bar.style.display = sentimentFilters[sentiment] ? 'block' : 'none';
+        });
+
+        // 3. Update Legend Opacity
+        const legendItems = document.querySelectorAll('.legend-item');
+        legendItems.forEach(item => {
+            if (item.textContent.trim().includes(sentiment) || (sentiment === 'Promocion' && item.textContent.includes('Promoción'))) {
+                item.style.opacity = sentimentFilters[sentiment] ? '1' : '0.4';
+            }
+        });
+    }
+
+    // Initialize Source Categories Chart if element exists
+    document.addEventListener('DOMContentLoaded', function () {
+        const sourceCtx = document.getElementById('sourceCategoriesChart');
+        if (sourceCtx) {
+            new Chart(sourceCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Oficial (Redes)', 'Oficial (Blog)', 'Menciones Redes', 'Noticias Externas', 'Ruido'],
+                    datasets: [{
+                        data: [
+                            {{ stats.source_categories.get('OFICIAL_REDES', 0) }},
+                    {{ stats.source_categories.get('OFICIAL_BLOG', 0) }},
+                            {{ stats.source_categories.get('MENCIONES_REDES', 0) }},
+        { { stats.source_categories.get('NOTICIAS_EXTERNAS', 0) } },
+        { { stats.source_categories.get('RUIDO', 0) } }
+                        ],
+        backgroundColor: [
+            '#3b82f6', // Oficial Redes (Blue)
+            '#1e40af', // Oficial Blog (Dark Blue)
+            '#f97316', // Menciones Redes (Orange)
+            '#22c55e', // Noticias (Green)
+            '#6b7280'  // Ruido (Gray)
+        ],
+            borderWidth: 0
+    }]
+                },
+        options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: {
+                    usePointStyle: true,
+                    padding: 20,
+                    color: '#9ca3af'
+                }
+            }
+        },
+        cutout: '60%'
+    }
+            });
+        }
+    });
+
+    function toggleBacklinks() {
+        // Reload page with toggle param
+        const url = new URL(window.location.href);
+        const current = url.searchParams.get('exclude_backlinks') === 'true';
+        url.searchParams.set('exclude_backlinks', !current);
+        window.location.href = url.toString();
+    }
+</script>
+{% endblock %}

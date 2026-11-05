@@ -1,0 +1,20 @@
+{
+    "Grupo_Propio": {
+        "descripcion": "Marca Propia (Identidad)",
+        "targets": [
+            {
+                "nombre": "MiMarca",
+                "dominio": "mimarca.com",
+                "busqueda": [
+                    "MiMarca",
+                    "MiMarca Oficial",
+                    "mimarca.com"
+                ],
+                "variaciones": [
+                    "MiMarca",
+                    "mimarca.com"
+                ]
+            }
+        ]
+    }
+}

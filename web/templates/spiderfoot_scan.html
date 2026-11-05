@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Reporte: {{ scan_name }}{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div class="header-title">
+        <a href="{{ url_for('spiderfoot_dashboard') }}" class="back-link">← Volver</a>
+        <h1>Reporte: {{ scan_name }}</h1>
+        <p class="subtitle">Resumen de hallazgos por categoría</p>
+        <div class="header-actions">
+            <form action="{{ url_for('spiderfoot_compare') }}" method="POST"
+                style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="hidden" name="scan1" value="{{ scan_name }}">
+                <select name="scan2" class="form-select" style="min-width: 200px; font-size: 0.9rem;">
+                    <option value="" disabled selected>Comparar con...</option>
+                    <!-- This needs list of other scans. For simplicity, user enters name or we fetch dynamically. 
+                     Ideally we pass 'all_scans' to this template. For now, let's assume specific workflow or user manages via Dashboard. 
+                     Better approach: Go to Dashboard, select 2, click Compare. 
+                     Alternative: Just a link to dashboard for comparison. 
+                -->
+                </select>
+                <button type="submit" class="btn btn-secondary">Comparar</button>
+            </form>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">
+        {{ error }}
+    </div>
+    {% else %}
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.values() | sum }}</div>
+            <div class="stat-label">Total Hallazgos</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats | length }}</div>
+            <div class="stat-label">Categorías Únicas</div>
+        </div>
+    </div>
+
+    <div class="card full-width">
+        <div class="card-header">
+            <h3 class="card-title">Desglose por Categoría</h3>
+        </div>
+        <div class="card-body">
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Categoría (Tipo de Dato)</th>
+                            <th>Cantidad</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for category, count in stats.items() %}
+                        <tr>
+                            <td>
+                                <span class="badge" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;">{{
+                                    category
+                                    }}</span>
+                            </td>
+                            <td style="font-weight: 500;">{{ count }}</td>
+                            <td>
+                                <a href="{{ url_for('spiderfoot_scan', scan_name=scan_name, category=category) }}"
+                                    class="btn btn-sm btn-secondary">
+                                    Ver Detalles →
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+
+    <div class="charts-container">
+        <div class="card full-width">
+            <div class="card-header">
+                <h3 class="card-title">Distribución de Hallazgos</h3>
+            </div>
+            <div class="card-body">
+                <canvas id="categoryChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+
+    {% endif %}
+    {% endblock %}
+
+    {% block scripts %}
+    <script>
+
+
+        {% if stats %}
+        document.addEventListener('DOMContentLoaded', function () {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            const data = {
+                labels: [{% for k in stats.keys() %}"{{ k }}", {% endfor %}],
+            datasets: [{
+                label: 'Hallazgos',
+                data: [{% for v in stats.values() %}{{ v }}, {% endfor %}],
+            backgroundColor: 'rgba(59, 130, 246, 0.6)',
+            borderColor: 'rgba(59, 130, 246, 1)',
+            borderWidth: 1
+        }]
+    };
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: data,
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                        ticks: { color: '#9ca3af' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#9ca3af' }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    title: { display: false }
+                }
+            }
+        });
+});
+        {% endif %}
+    </script>
+    {% endblock %}

@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}{{ scan_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">{{ scan_name }}</h1>
+    <p class="page-subtitle">Detalles del escaneo</p>
+</div>
+
+<a href="{{ url_for('results_page') }}" class="btn btn-secondary" style="margin-bottom: 1.5rem;">← Volver</a>
+
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
+    <div class="stat-card total">
+        <div class="stat-value">{{ results.csv_files|length }}</div>
+        <div class="stat-label">Archivos CSV</div>
+    </div>
+    <div class="stat-card positive">
+        <div class="stat-value">{{ results.images|length }}</div>
+        <div class="stat-label">Gráficas</div>
+    </div>
+    <div class="stat-card neutral">
+        <div class="stat-value">{{ results.html_files|length }}</div>
+        <div class="stat-label">Reportes HTML</div>
+    </div>
+</div>
+
+{% if results.images %}
+<div class="card" style="margin-bottom: 1.5rem;">
+    <h3 class="card-title" style="margin-bottom: 1rem;">Gráficas Generadas</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+        {% for img in results.images %}
+        <div style="background: var(--bg-dark); border-radius: var(--radius-sm); padding: 1rem; text-align: center;">
+            <img src="{{ url_for('serve_report_file', filename=scan_name + '/' + img) }}"
+                style="max-width: 100%; border-radius: var(--radius-sm);" alt="{{ img }}">
+            <p style="color: var(--fg-dim); font-size: 0.875rem; margin-top: 0.5rem;">{{ img }}</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if results.csv_files %}
+<div class="card" style="margin-bottom: 1.5rem;">
+    <h3 class="card-title" style="margin-bottom: 1rem;">Archivos de Datos</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+        {% for csv in results.csv_files %}
+        <button class="btn btn-secondary csv-btn" data-file="{{ csv }}">
+            {{ csv }}
+        </button>
+        {% endfor %}
+    </div>
+
+    <div id="dataPreview" style="margin-top: 1.5rem; display: none;">
+        <h4 style="color: var(--fg-dim); margin-bottom: 0.5rem;">Vista Previa</h4>
+        <div class="table-container" style="max-height: 400px; overflow: auto;">
+            <table class="data-table" id="dataTable">
+                <thead id="dataTableHead"></thead>
+                <tbody id="dataTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if results.html_files %}
+<div class="card">
+    <h3 class="card-title" style="margin-bottom: 1rem;">Reportes HTML</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+        {% for html in results.html_files %}
+        <a href="{{ url_for('serve_report_file', filename=scan_name + '/' + html) }}" target="_blank"
+            class="btn btn-primary">
+            {{ html }}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.querySelectorAll('.csv-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const file = btn.dataset.file;
+            const scanName = '{{ scan_name }}';
+
+            try {
+                const resp = await fetch(`/api/data/${scanName}/${file}`);
+                const data = await resp.json();
+
+                if (data.length > 0) {
+                    const preview = document.getElementById('dataPreview');
+                    const thead = document.getElementById('dataTableHead');
+                    const tbody = document.getElementById('dataTableBody');
+
+                    // Headers
+                    const cols = Object.keys(data[0]).slice(0, 6); // Limit columns
+                    thead.innerHTML = '<tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr>';
+
+                    // Rows (limit to 50)
+                    tbody.innerHTML = data.slice(0, 50).map(row =>
+                        '<tr>' + cols.map(c => {
+                            let val = row[c] || '';
+                            if (typeof val === 'string' && val.length > 100) {
+                                val = val.substring(0, 100) + '...';
+                            }
+                            return `<td>${val}</td>`;
+                        }).join('') + '</tr>'
+                    ).join('');
+
+                    preview.style.display = 'block';
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        });
+    });
+</script>
+{% endblock %}

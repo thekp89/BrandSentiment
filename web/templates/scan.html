@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title %}Nuevo Escaneo{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Iniciar Nuevo Escaneo</h1>
+        <p class="page-subtitle">Configurar y ejecutar un nuevo escaneo de monitoreo de marca</p>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+    <!-- Configuration -->
+    <div class="card">
+        <h3 class="card-title" style="margin-bottom: 1.5rem;">Configuración de Escaneo</h3>
+
+        <form id="scanForm">
+            <div class="form-group">
+                <label class="form-label">Configuración de Objetivos</label>
+                <select class="form-select" name="targets_file" id="targetsFile">
+                    {% for tf in targets_files %}
+                    <option value="config/{{ tf }}">{{ tf }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-checkbox">
+                    <input type="checkbox" name="skip_ai" id="skipAi">
+                    <span>Desactivar Análisis de Inteligencia & Reducción de Ruido</span>
+                </label>
+                <p style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.25rem; margin-left: 1.5rem;">
+                    Recomendado: La IA analiza cada mención para eliminar ruido y clasificar con precisión.
+                </p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-checkbox">
+                    <input type="checkbox" name="include_backlinks" id="includeBacklinks" checked>
+                    <span>Incluir Búsqueda de Backlinks (Completo)</span>
+                </label>
+            </div>
+
+            <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                <h4 style="font-size: 0.9rem; color: #1e293b; margin-bottom: 1rem;">Ajustes Avanzados de IA</h4>
+
+                <div class="form-group">
+                    <label class="form-label">Modelo de IA (Ollama)</label>
+                    <select class="form-select" name="ollama_model" id="ollamaModel">
+                        <!-- Polled dynamically -->
+                        <option value="mistral:latest">Espere/Cargando...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Re-analizar Archivo Específico (Opcional)</label>
+                    <select class="form-select" name="custom_file" id="customFile">
+                        <option value="">-- Usar Resultados del Escaneo Actual --</option>
+                        <!-- Polled dynamically -->
+                    </select>
+                    <p style="font-size: 0.7rem; color: #64748b; margin-top: 0.25rem;">
+                        Permite volver a procesar datos de una recolección anterior.
+                    </p>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="startBtn" style="width: 100%; margin-top: 1rem;">
+                Iniciar Escaneo Nuevo
+            </button>
+            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                <button type="button" class="btn btn-outline" id="resumeBtn" style="width: 100%; display: none;">
+                    Reanudar Último Análisis
+                </button>
+                <p id="latestMasterInfo"
+                    style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem; text-align: center; display: none;">
+                    Detectado: <span id="latestMasterTime"></span>
+                </p>
+            </div>
+        </form>
+    </div>
+
+    <!-- Status -->
+    <div class="card">
+        <h3 class="card-title" style="margin-bottom: 1.5rem;">Estado del Escaneo</h3>
+
+        <div class="scan-status-box" id="scanStatusBox">
+            <span class="pulse-dot" id="statusDot"></span>
+            <span id="statusMessage">Listo para escanear</span>
+        </div>
+
+        <div class="progress-container" id="progressContainer" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+            <div
+                style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.8rem; color: #6b7280;">
+                <span id="progressPercent">0%</span>
+                <span id="currentTarget"></span>
+            </div>
+        </div>
+
+        <div style="margin-top: 1.5rem;">
+            <label class="form-label">Salida de Consola</label>
+            <div class="log-console" id="logConsole">
+                <div class="log-line">Esperando escaneo...</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const form = document.getElementById('scanForm');
+    const startBtn = document.getElementById('startBtn');
+    const statusDot = document.getElementById('statusDot');
+    const statusMessage = document.getElementById('statusMessage');
+    const statusBox = document.getElementById('scanStatusBox');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressFill = document.getElementById('progressFill');
+    const progressPercent = document.getElementById('progressPercent');
+    const currentTarget = document.getElementById('currentTarget');
+    const resumeBtn = document.getElementById('resumeBtn');
+    const latestMasterInfo = document.getElementById('latestMasterInfo');
+    const latestMasterTime = document.getElementById('latestMasterTime');
+    const ollamaModel = document.getElementById('ollamaModel');
+    const customFile = document.getElementById('customFile');
+    const logConsole = document.getElementById('logConsole');
+
+    let polling = null;
+
+    // Check initial status
+    checkStatus();
+    checkLatestMaster();
+    loadAiModels();
+    loadRecoleccionFiles();
+
+    form.addEventListener('submit', (e) => startScan(e, 'new'));
+    resumeBtn.addEventListener('click', (e) => startScan(e, 'resume'));
+
+    async function startScan(e, mode = 'new') {
+        e.preventDefault();
+
+        // Si se seleccionó un archivo manual, cambiar modo a custom
+        let selectedMode = mode;
+        const archivoEspecífico = customFile.value;
+        if (archivoEspecífico && mode === 'new') {
+            selectedMode = 'custom';
+        }
+
+        const data = {
+            targets_file: document.getElementById('targetsFile').value,
+            skip_ai: document.getElementById('skipAi').checked,
+            include_backlinks: document.getElementById('includeBacklinks').checked,
+            mode: selectedMode,
+            archivo_especifico: archivoEspecífico,
+            model_name: ollamaModel.value
+        };
+
+        try {
+            const resp = await fetch('/api/scan/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await resp.json();
+
+            if (resp.ok) {
+                setRunningState();
+                startPolling();
+            } else {
+                statusMessage.textContent = result.error || 'Error al iniciar escaneo';
+            }
+        } catch (err) {
+            console.error(err);
+            statusMessage.textContent = 'Error de conexión';
+        }
+    }
+
+    function setRunningState() {
+        startBtn.disabled = true;
+        startBtn.textContent = 'Ejecutando...';
+        statusDot.classList.add('active');
+        statusDot.classList.remove('idle');
+        statusBox.classList.add('running');
+        statusBox.classList.remove('idle');
+        statusMessage.textContent = 'Ejecutando escaneo...';
+        progressContainer.style.display = 'block';
+        logConsole.innerHTML = '';
+    }
+
+    function setIdleState() {
+        startBtn.disabled = false;
+        resumeBtn.disabled = false;
+        startBtn.textContent = 'Iniciar Escaneo Nuevo';
+        statusDot.classList.remove('active');
+        statusDot.classList.add('idle');
+        statusBox.classList.remove('running');
+        statusBox.classList.add('idle');
+        checkLatestMaster(); // Refresh latest master on idle
+    }
+
+    async function loadAiModels() {
+        try {
+            const resp = await fetch('/api/ai/models');
+            const data = await resp.json();
+            if (data.models) {
+                ollamaModel.innerHTML = data.models.map(m =>
+                    `<option value="${m}" ${m.includes('mistral') ? 'selected' : ''}>${m}</option>`
+                ).join('');
+            }
+        } catch (err) {
+            console.error("Error loading models:", err);
+            ollamaModel.innerHTML = '<option value="mistral:latest">mistral:latest (default)</option>';
+        }
+    }
+
+    async function loadRecoleccionFiles() {
+        try {
+            const resp = await fetch('/api/recoleccion/list');
+            const data = await resp.json();
+            if (data.files) {
+                const options = data.files.map(f =>
+                    `<option value="${f.name}">${f.name} (${f.modified})</option>`
+                );
+                customFile.innerHTML = '<option value="">-- Usar Resultados del Escaneo Actual --</option>' + options.join('');
+            }
+        } catch (err) {
+            console.error("Error loading files:", err);
+        }
+    }
+
+    async function checkLatestMaster() {
+        try {
+            const resp = await fetch('/api/scan/latest_master');
+            const data = await resp.json();
+            if (data.found) {
+                latestMasterTime.textContent = data.timestamp;
+                latestMasterInfo.style.display = 'block';
+                resumeBtn.style.display = 'block';
+            } else {
+                latestMasterInfo.style.display = 'none';
+                resumeBtn.style.display = 'none';
+            }
+        } catch (err) {
+            console.error("Error checking latest master:", err);
+        }
+    }
+
+    async function checkStatus() {
+        try {
+            const resp = await fetch('/api/scan/status');
+            const status = await resp.json();
+
+            if (status.running) {
+                setRunningState();
+                updateStatus(status);
+                startPolling();
+            } else {
+                setIdleState();
+                if (status.progress === 100) {
+                    statusMessage.textContent = 'Último escaneo completado';
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    function updateStatus(status) {
+        progressFill.style.width = status.progress + '%';
+        progressPercent.textContent = status.progress + '%';
+        currentTarget.textContent = status.current_target || '';
+        statusMessage.textContent = status.message || 'Ejecutando...';
+
+        if (status.log && status.log.length > 0) {
+            logConsole.innerHTML = status.log.map(line =>
+                `<div class="log-line">${line}</div>`
+            ).join('');
+            logConsole.scrollTop = logConsole.scrollHeight;
+        }
+    }
+
+    function startPolling() {
+        if (polling) return;
+
+        polling = setInterval(async () => {
+            try {
+                const resp = await fetch('/api/scan/status');
+                const status = await resp.json();
+
+                updateStatus(status);
+
+                if (!status.running) {
+                    clearInterval(polling);
+                    polling = null;
+                    setIdleState();
+                    statusMessage.textContent = status.message || 'Escaneo completado';
+                    progressFill.style.width = '100%';
+                    progressPercent.textContent = '100%';
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }, 1500);
+    }
+</script>
+{% endblock %}

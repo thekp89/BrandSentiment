@@ -1,0 +1,179 @@
+{
+    "Grupo_Propio": {
+        "descripcion": "Marca Propia (Identidad)",
+        "targets": [
+            {
+                "nombre": "MiMarca",
+                "dominio": "mimarca.com",
+                "busqueda": [
+                    "MiMarca",
+                    "MiMarca Oficial",
+                    "mimarca.com"
+                ],
+                "variaciones": [
+                    "MiMarca",
+                    "mimarca.com"
+                ]
+            }
+        ]
+    },
+    "Grupo_A": {
+        "descripcion": "Competencia Técnica (Online/Tech-savvy)",
+        "targets": [
+            {
+                "nombre": "UNIR",
+                "dominio": "unir.net",
+                "busqueda": [
+                    "UNIR México",
+                    "Universidad Internacional de La Rioja"
+                ],
+                "variaciones": [
+                    "UNIR",
+                    "unir.net",
+                    "maestria unir"
+                ]
+            },
+            {
+                "nombre": "UTEL",
+                "dominio": "utel.edu.mx",
+                "busqueda": [
+                    "UTEL Universidad",
+                    "Universidad Tecnológica Latinoamericana en Línea"
+                ],
+                "variaciones": [
+                    "UTEL",
+                    "utel.edu.mx"
+                ]
+            },
+            {
+                "nombre": "UAG_Online",
+                "dominio": "uag.mx",
+                "busqueda": [
+                    "UAG Online",
+                    "Universidad Autónoma de Guadalajara Online"
+                ],
+                "variaciones": [
+                    "UAG",
+                    "uag.mx"
+                ]
+            },
+            {
+                "nombre": "UP_Online",
+                "dominio": "up.edu.mx",
+                "busqueda": [
+                    "Universidad Panamericana Online",
+                    "UP Online"
+                ],
+                "variaciones": [
+                    "Universidad Panamericana",
+                    "UP"
+                ]
+            }
+        ]
+    },
+    "Grupo_B": {
+        "descripcion": "Competencia Regional (Sureste/Chiapas)",
+        "targets": [
+            {
+                "nombre": "Universidad_del_Sur",
+                "dominio": "universidaddelsur.edu.mx",
+                "busqueda": [
+                    "Universidad del Sur",
+                    "Universidad del Sur Tuxtla"
+                ],
+                "variaciones": [
+                    "Universidad del Sur",
+                    "Unisur"
+                ]
+            },
+            {
+                "nombre": "UVG",
+                "dominio": "uvg.edu.mx",
+                "busqueda": [
+                    "Universidad Valle del Grijalva",
+                    "UVG Chiapas"
+                ],
+                "variaciones": [
+                    "UVG",
+                    "Valle del Grijalva"
+                ]
+            },
+            {
+                "nombre": "IEXPRO",
+                "dominio": "universidadiexpro.edu.mx",
+                "busqueda": [
+                    "Universidad IEXPRO"
+                ],
+                "variaciones": [
+                    "IEXPRO"
+                ]
+            },
+            {
+                "nombre": "UPChiapas",
+                "dominio": "upchiapas.edu.mx",
+                "busqueda": [
+                    "Universidad Politécnica de Chiapas"
+                ],
+                "variaciones": [
+                    "UPChiapas",
+                    "Politécnica de Chiapas"
+                ]
+            },
+            {
+                "nombre": "TecNM_Tuxtla",
+                "dominio": "tuxtla.tecnm.mx",
+                "busqueda": [
+                    "Tecnológico de Tuxtla Gutiérrez",
+                    "TecNM Tuxtla"
+                ],
+                "variaciones": [
+                    "TecNM",
+                    "ITTG",
+                    "Tec Tuxtla"
+                ]
+            }
+        ]
+    },
+    "Grupo_C": {
+        "descripcion": "Referentes Nacionales (Benchmarking)",
+        "targets": [
+            {
+                "nombre": "UNAM",
+                "dominio": "unam.mx",
+                "busqueda": [
+                    "UNAM",
+                    "Universidad Nacional Autónoma de México"
+                ],
+                "variaciones": [
+                    "UNAM",
+                    "unam.mx"
+                ]
+            },
+            {
+                "nombre": "Tec_Monterrey",
+                "dominio": "tec.mx",
+                "busqueda": [
+                    "Tecnológico de Monterrey",
+                    "ITESM"
+                ],
+                "variaciones": [
+                    "Tec de Monterrey",
+                    "ITESM",
+                    "Borregos"
+                ]
+            },
+            {
+                "nombre": "IPN",
+                "dominio": "ipn.mx",
+                "busqueda": [
+                    "Instituto Politécnico Nacional",
+                    "IPN"
+                ],
+                "variaciones": [
+                    "IPN",
+                    "Politécnico"
+                ]
+            }
+        ]
+    }
+}

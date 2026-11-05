@@ -1,0 +1,14 @@
+# Búsqueda en Redes Sociales (Social Listening)
+site:twitter.com "{TARGET_BRAND}" AND ("caído" OR "lento" OR "estafa" OR "pésimo")
+site:facebook.com "{TARGET_BRAND}" AND "queja"
+site:reddit.com "{TARGET_BRAND}" OR "{TARGET_DOMAIN}"
+
+# Búsqueda de Fugas de Información (Dorks de Hacking)
+site:pastebin.com "{TARGET_DOMAIN}"
+site:github.com "{TARGET_DOMAIN}" AND ("password" OR "apikey" OR "secret")
+site:trello.com "{TARGET_BRAND}"
+filetype:xls OR filetype:xlsx "{TARGET_BRAND}" "usuarios"
+filetype:sql "{TARGET_BRAND}"
+
+# Búsqueda de Reputación / Legal
+"{TARGET_BRAND}" AND ("profeco" OR "demanda" OR "fraude" OR "falso")

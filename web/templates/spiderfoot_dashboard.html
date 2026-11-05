@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Análisis SpiderFoot{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div class="header-title">
+        <h1>Análisis SpiderFoot</h1>
+        <p class="subtitle">Gestiona y analiza tus reportes de reconocimiento</p>
+    </div>
+    <div class="header-actions">
+        <button class="btn btn-secondary" onclick="compareSelected()" id="btnCompare" disabled>
+            ⚖️ Comparar (0/2)
+        </button>
+        <button class="btn btn-primary" onclick="document.getElementById('uploadInput').click()">
+            <span class="icon">📤</span> Subir Reporte CSV
+        </button>
+        <input type="file" id="uploadInput" accept=".csv" style="display: none;" onchange="uploadFile(this)">
+    </div>
+</div>
+
+<div class="grid-container">
+    {% if scans %}
+    {% for scan in scans %}
+    <div class="card scan-card">
+        <div class="card-header">
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="checkbox" name="scan_selection" value="{{ scan.name }}"
+                    onchange="updateCompareSelection(this)">
+                <h3 class="card-title">{{ scan.name }}</h3>
+            </div>
+            <div class="card-actions">
+                <button type="button" class="btn-icon" onclick="deleteScan('{{ scan.name }}')"
+                    title="Eliminar">🗑️</button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="metric-row">
+                <div class="metric">
+                    <span class="label">Fecha</span>
+                    <span class="value" style="font-size: 0.9rem;">{{ scan.date }}</span>
+                </div>
+                <div class="metric">
+                    <span class="label">Tamaño</span>
+                    <span class="value" style="font-size: 0.9rem;">{{ scan.size }}</span>
+                </div>
+            </div>
+            <a href="{{ url_for('spiderfoot_scan', scan_name=scan.name) }}" class="btn btn-secondary full-width"
+                style="margin-top: 1rem; text-align: center;">
+                Analizar Reporte
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="card full-width" style="text-align: center; padding: 4rem;">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">🕷️</div>
+        <h3>No hay reportes de SpiderFoot</h3>
+        <p style="color: var(--text-secondary); margin-bottom: 2rem;">Sube un archivo CSV exportado de SpiderFoot
+            para
+            comenzar el análisis.</p>
+        <button class="btn btn-primary" onclick="document.getElementById('uploadInput').click()">Subir
+            Reporte</button>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function uploadFile(input) {
+        if (!input.files || input.files.length === 0) return;
+
+        const file = input.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        // Show loading state
+        const originalText = document.querySelector('.header-actions .btn-primary').innerHTML;
+        document.querySelector('.header-actions .btn-primary').innerHTML = '<span class="status-dot active"></span> Subiendo...';
+
+        try {
+            const response = await fetch('/spiderfoot/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                window.location.reload();
+            } else {
+                alert('Error: ' + result.error);
+                document.querySelector('.header-actions .btn-primary').innerHTML = originalText;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error de conexión');
+            document.querySelector('.header-actions .btn-primary').innerHTML = originalText;
+        }
+    }
+
+    function updateCompareSelection(checkbox) {
+        const checkboxes = document.querySelectorAll('input[name="scan_selection"]:checked');
+        const btn = document.getElementById('btnCompare');
+
+        btn.textContent = `⚖️ Comparar (${checkboxes.length}/2)`;
+        btn.disabled = checkboxes.length !== 2;
+    }
+
+    function compareSelected() {
+        const checkboxes = document.querySelectorAll('input[name="scan_selection"]:checked');
+        if (checkboxes.length !== 2) return;
+
+        // Programmatic submission
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = "{{ url_for('spiderfoot_compare') }}";
+        form.style.display = 'none';
+
+        const input1 = document.createElement('input');
+        input1.type = 'hidden';
+        input1.name = 'scan1';
+        input1.value = checkboxes[0].value;
+
+        const input2 = document.createElement('input');
+        input2.type = 'hidden';
+        input2.name = 'scan2';
+        input2.value = checkboxes[1].value;
+
+        form.appendChild(input1);
+        form.appendChild(input2);
+
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    async function deleteScan(scanName) {
+        if (!confirm('¿Estás seguro de eliminar este reporte?')) return;
+
+        try {
+            const response = await fetch(`/spiderfoot/delete/${scanName}`, {
+                method: 'POST'
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                window.location.reload();
+            } else {
+                alert('Error al eliminar: ' + result.error);
+            }
+        } catch (error) {
+            alert('Error de conexión');
+        }
+    }
+</script>
+{% endblock %}

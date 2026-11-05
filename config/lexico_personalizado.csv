@@ -1,0 +1,131 @@
+token,valor
+# --- CIBERSEGURIDAD Y RIESGO TÉCNICO (Prioridad Alta) ---
+hackeado,-1.0
+vulnerado,-1.0
+phishing,-1.0
+ransomware,-1.0
+malware,-0.9
+virus,-0.9
+trojano,-0.9
+filtracion,-1.0
+leak,-1.0
+brecha de datos,-1.0
+base de datos expuesta,-1.0
+credenciales expuestas,-1.0
+contraseña filtrada,-1.0
+sitio inseguro,-0.8
+certificado vencido,-0.7
+acceso no autorizado,-0.9
+inyeccion sql,-0.9
+ataque ddos,-1.0
+suplantacion,-1.0
+
+# --- INFRAESTRUCTURA Y PLATAFORMA (Disponibilidad) ---
+sistema caido,-1.0
+plataforma lenta,-0.8
+servidor caido,-1.0
+error 404,-0.8
+error 500,-0.8
+no carga,-0.7
+pantalla blanca,-0.6
+neo lms falla,-0.8
+campus virtual caido,-0.9
+moodle lento,-0.7
+sin acceso,-0.8
+no puedo entrar,-0.7
+timeout,-0.6
+se traba,-0.6
+desconexion,-0.5
+intermitente,-0.5
+bug,-0.4
+
+# --- CONTEXTO LEGAL (Desambiguación de "Demanda") ---
+demanda legal,-1.0
+demanda profeco,-1.0
+demanda colectiva,-1.0
+voy a demandar,-1.0
+proceso legal,-0.9
+juicio,-0.8
+denuncia,-0.9
+fraude,-1.0
+estafa,-1.0
+robo,-1.0
+ilegal,-1.0
+clausurado,-1.0
+sin validez,-1.0
+titulo falso,-1.0
+escuela patito,-1.0
+sin rvoe,-1.0
+rvoe falso,-1.0
+
+# --- CONTEXTO DE MERCADO/ACADÉMICO (Desambiguación Positiva) ---
+alta demanda,0.6
+mucha demanda,0.5
+demanda laboral,0.8
+demanda academica,0.5
+demanda de profesionistas,0.7
+oferta y demanda,0.0
+carrera solicitada,0.7
+campo laboral,0.6
+bolsa de trabajo,0.5
+
+# --- BUROCRACIA Y ADMINISTRACIÓN (Dolor del Usuario 30-50 años) ---
+burocracia,-0.9
+ineficiente,-0.8
+tramite lento,-0.8
+perdida de tiempo,-0.9
+nadie contesta,-0.8
+ignoran correos,-0.8
+pesimo servicio,-1.0
+servicio al cliente malo,-0.9
+sin respuesta,-0.7
+telefono muerto,-0.6
+desorganizacion,-0.7
+trabas,-0.7
+incapaces,-0.8
+incompetente,-0.9
+
+# --- VALOR Y RETORNO DE INVERSIÓN (ROI) ---
+dinero tirado,-1.0
+gasto inutil,-0.9
+muy caro,-0.6
+cargo no reconocido,-0.8
+no reembolsan,-0.9
+robo de dinero,-1.0
+buena inversion,0.8
+vale la pena,0.9
+precio justo,0.6
+costo beneficio,0.7
+accesible,0.5
+beca real,0.7
+transparente,0.8
+
+# --- SATISFACCIÓN Y CALIDAD (Vocabulario Profesional) ---
+excelente,1.0
+profesional,0.9
+formal,0.8
+serio,0.8
+calidad academica,0.9
+compromiso,0.7
+flexible,1.0
+practico,0.9
+funcional,0.8
+eficiente,0.9
+rapido,0.7
+solucionaron,0.9
+atentos,0.7
+recomendado,1.0
+mejor opcion,0.9
+clases utiles,0.8
+actualizado,0.7
+
+# --- NEUTRALIZADORES Y RELLENO (Evitar ruido) ---
+clase,0.0
+profesor,0.0
+alumno,0.0
+universidad,0.0
+inscripcion,0.0
+semestre,0.0
+informacion,0.0
+pregunta,0.0
+duda,0.0

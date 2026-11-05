@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% block title %}Por Entidad{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Análisis por Entidad</h1>
+        <p class="page-subtitle">Desglose de sentimiento por entidad monitoreada</p>
+    </div>
+
+    <!-- Interactive Filters integrated into header area -->
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <div class="card"
+            style="padding: 0.5rem 1rem; display: flex; align-items: center; gap: 1rem; box-shadow: var(--shadow-sm); border: 1px solid var(--border-color); background: white; margin: 0;">
+            <div
+                style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; font-weight: 700; color: #94a3b8; border-right: 1px solid #f1f5f9; padding-right: 1rem; margin-right: 0.5rem;">
+                <span>FILTROS</span>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <label class="form-checkbox">
+                    <input type="checkbox" id="toggleNormal" checked onchange="applyInteractiveFilters()">
+                    <span>Menciones</span>
+                </label>
+                <label class="form-checkbox">
+                    <input type="checkbox" id="toggleBacklinks" checked onchange="applyInteractiveFilters()">
+                    <span>Backlinks</span>
+                </label>
+            </div>
+
+            <div style="width: 1px; height: 16px; background: #f1f5f9;"></div>
+
+            <div style="display: flex; align-items: center; gap: 0.8rem;">
+                <label class="form-checkbox" style="color: var(--positive);">
+                    <input type="checkbox" id="sentPos" checked onchange="applyInteractiveFilters()">
+                    <span>Pos</span>
+                </label>
+                <label class="form-checkbox" style="color: var(--neutral);">
+                    <input type="checkbox" id="sentNeu" checked onchange="applyInteractiveFilters()">
+                    <span>Neu</span>
+                </label>
+                <label class="form-checkbox" style="color: var(--negative);">
+                    <input type="checkbox" id="sentNeg" checked onchange="applyInteractiveFilters()">
+                    <span>Neg</span>
+                </label>
+                <label class="form-checkbox" style="color: #8b5cf6;">
+                    <input type="checkbox" id="sentProm" checked onchange="applyInteractiveFilters()">
+                    <span>Prom</span>
+                </label>
+                <label class="form-checkbox" style="color: #6b7280;">
+                    <input type="checkbox" id="sentRuido" checked onchange="applyInteractiveFilters()">
+                    <span>Ruido</span>
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="entitiesContainer">
+    <!-- Filled by JavaScript based on filters -->
+    <div class="card">
+        <p style="text-align: center; color: #6b7280; padding: 2rem;">Cargando análisis de entidades...</p>
+    </div>
+</div>
+
+<div class="card" style="margin-top: 1.5rem;">
+    <h3 class="card-title">Gráfico de Comparación de Entidades (por Sentimiento)</h3>
+    <div style="height: 350px; position: relative; width: 100%;">
+        <canvas id="entityChart"></canvas>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Securely transfer JSON data from Flask to JS -->
+<script id="mentions-data" type="application/json">
+{{ mentions_json | tojson | safe }}
+</script>
+
+<script>
+    let allMentions = [];
+    let entityChart = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        try {
+            // Read data from the JSON block
+            const dataElement = document.getElementById('mentions-data');
+            if (dataElement) {
+                allMentions = JSON.parse(dataElement.textContent) || [];
+            }
+
+            initChart();
+            applyInteractiveFilters();
+        } catch (e) {
+            console.error("Initialization error:", e);
+            const container = document.getElementById('entitiesContainer');
+            if (container) {
+                container.innerHTML = `
+                    <div class="card" style="border: 1px solid #fee2e2; background: #fef2f2;">
+                        <p style="text-align: center; color: #991b1b; padding: 2rem;">
+                            <strong>Error de inicialización</strong><br>
+                            No se pudieron procesar los datos del escaneo.
+                        </p>
+                    </div>
+                `;
+            }
+        }
+    });
+
+    function initChart() {
+        const canvas = document.getElementById('entityChart');
+        if (!canvas || typeof Chart === 'undefined') return;
+
+        const ctx = canvas.getContext('2d');
+        entityChart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: [], datasets: [] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, position: 'bottom', labels: { usePointStyle: true, boxWidth: 6 } },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    x: { stacked: true, grid: { display: false } },
+                    y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Menciones', font: { weight: 'bold' } } }
+                }
+            }
+        });
+    }
+
+    function applyInteractiveFilters() {
+        try {
+            const showNormal = document.getElementById('toggleNormal')?.checked ?? true;
+            const showBacklinks = document.getElementById('toggleBacklinks')?.checked ?? true;
+            const showPos = document.getElementById('sentPos')?.checked ?? true;
+            const showNeu = document.getElementById('sentNeu')?.checked ?? true;
+            const showNeg = document.getElementById('sentNeg')?.checked ?? true;
+            const showProm = document.getElementById('sentProm')?.checked ?? true;
+            const showRuido = document.getElementById('sentRuido')?.checked ?? true;
+
+            const entitiesDetail = {};
+            allMentions.forEach(m => {
+                const isBacklink = m.is_backlink || false;
+                const typeMatch = (isBacklink && showBacklinks) || (!isBacklink && showNormal);
+
+                const sentimentMatch = isBacklink ||
+                    (m.sentiment === 'Positivo' && showPos) ||
+                    (m.sentiment === 'Neutro' && showNeu) ||
+                    (m.sentiment === 'Negativo' && showNeg) ||
+                    (m.sentiment === 'Promocion' && showProm) ||
+                    (m.sentiment === 'Ruido' && showRuido);
+
+                if (typeMatch && sentimentMatch) {
+                    const ent = m.entity || "Unknown";
+                    if (!entitiesDetail[ent]) {
+                        entitiesDetail[ent] = { Positivo: 0, Neutro: 0, Negativo: 0, Promocion: 0, Ruido: 0, Backlinks: 0, Total: 0 };
+                    }
+                    if (isBacklink) {
+                        entitiesDetail[ent].Backlinks++;
+                    } else {
+                        const s = m.sentiment;
+                        if (entitiesDetail[ent].hasOwnProperty(s)) {
+                            entitiesDetail[ent][s]++;
+                        }
+                    }
+                    entitiesDetail[ent].Total++;
+                }
+            });
+
+            renderUI(entitiesDetail);
+        } catch (e) {
+            console.error("Filtering error:", e);
+        }
+    }
+
+    function renderUI(details) {
+        const container = document.getElementById('entitiesContainer');
+        if (!container) return;
+
+        container.innerHTML = '';
+        const entities = Object.keys(details).sort((a, b) => details[b].Total - details[a].Total);
+
+        if (entities.length === 0) {
+            container.innerHTML = '<div class="card"><p style="text-align: center; color: #64748b; padding: 3rem;">No hay menciones que coincidan con los filtros seleccionados.</p></div>';
+            if (entityChart) {
+                entityChart.data.labels = [];
+                entityChart.data.datasets = [];
+                entityChart.update();
+            }
+            return;
+        }
+
+        const cardWrapper = document.createElement('div');
+        cardWrapper.className = 'card';
+        cardWrapper.innerHTML = '<h3 class="card-title" style="margin-bottom: 1.5rem;">Desglose por Entidad</h3>';
+
+        const listDiv = document.createElement('div');
+
+        entities.forEach(entity => {
+            const d = details[entity];
+            const posPct = d.Total > 0 ? (d.Positivo / d.Total * 100).toFixed(1) : 0;
+            const neuPct = d.Total > 0 ? (d.Neutro / d.Total * 100).toFixed(1) : 0;
+            const negPct = d.Total > 0 ? (d.Negativo / d.Total * 100).toFixed(1) : 0;
+            const proPct = d.Total > 0 ? (d.Promocion / d.Total * 100).toFixed(1) : 0;
+            const ruiPct = d.Total > 0 ? (d.Ruido / d.Total * 100).toFixed(1) : 0;
+            const blPct = d.Total > 0 ? (d.Backlinks / d.Total * 100).toFixed(1) : 0;
+
+            const scanName = "{{ stats.scan_name }}";
+            const detailUrl = `/entity/${encodeURIComponent(entity)}?scan=${encodeURIComponent(scanName)}`;
+
+            const row = document.createElement('div');
+            row.style.cssText = 'margin-bottom: 2rem; background: #fff; padding: 1.5rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);';
+            row.innerHTML = `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; align-items: center;">
+                    <span style="font-weight: 700; font-size: 1.2rem; color: #0f172a; cursor: pointer;" onclick="window.location.href='${detailUrl}'">${entity}</span>
+                    <span style="color: #64748b; font-size: 0.9rem; font-weight: 600; background: #f8fafc; padding: 0.25rem 0.75rem; border-radius: 20px;">${d.Total} recursos</span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.4rem; color: #475569; text-transform: uppercase; letter-spacing: 0.025em;">
+                    <div style="display: flex; gap: 1rem;">
+                        <span style="color: #10b981;">● Pos: ${posPct}%</span>
+                        <span style="color: #3b82f6;">● Neu: ${neuPct}%</span>
+                        <span style="color: #ef4444;">● Neg: ${negPct}%</span>
+                        <span style="color: #8b5cf6;">● Prom: ${proPct}%</span>
+                    </div>
+                    <span style="color: #f97316;">● Backlinks: ${blPct}%</span>
+                </div>
+
+                <div class="sentiment-bar-container" style="display: flex; height: 16px; border-radius: 8px; overflow: hidden; background: #f1f5f9; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); position: relative;">
+                    <div class="sentiment-bar positive" style="width: ${posPct}%; height: 100%; transition: width 0.3s ease;" title="Positivo: ${d.Positivo}"></div>
+                    <div class="sentiment-bar neutral" style="width: ${neuPct}%; height: 100%; transition: width 0.3s ease;" title="Neutro: ${d.Neutro}"></div>
+                    <div class="sentiment-bar negative" style="width: ${negPct}%; height: 100%; transition: width 0.3s ease;" title="Negativo: ${d.Negativo}"></div>
+                    <div class="sentiment-bar promotion" style="width: ${proPct}%; height: 100%; background-color: #8b5cf6; transition: width 0.3s ease;" title="Promoción: ${d.Promocion}"></div>
+                    <div class="sentiment-bar noise" style="width: ${ruiPct}%; height: 100%; background-color: #6b7280; transition: width 0.3s ease;" title="Ruido: ${d.Ruido}"></div>
+                    <div class="sentiment-bar orange" style="width: ${blPct}%; height: 100%; background-color: #f97316; transition: width 0.3s ease;" title="Backlinks: ${d.Backlinks}"></div>
+                </div>
+            `;
+            listDiv.appendChild(row);
+        });
+        cardWrapper.appendChild(listDiv);
+        container.appendChild(cardWrapper);
+
+        updateChart(details, entities);
+    }
+
+    function updateChart(details, entities) {
+        if (!entityChart) return;
+
+        const posData = entities.map(e => details[e]?.Positivo ?? 0);
+        const neuData = entities.map(e => details[e]?.Neutro ?? 0);
+        const negData = entities.map(e => details[e]?.Negativo ?? 0);
+        const proData = entities.map(e => details[e]?.Promocion ?? 0);
+        const ruiData = entities.map(e => details[e]?.Ruido ?? 0);
+        const blData = entities.map(e => details[e]?.Backlinks ?? 0);
+
+        entityChart.data.labels = entities;
+        entityChart.data.datasets = [
+            { label: 'Positivo', data: posData, backgroundColor: '#10b981', borderRadius: 4 },
+            { label: 'Neutro', data: neuData, backgroundColor: '#3b82f6', borderRadius: 4 },
+            { label: 'Negativo', data: negData, backgroundColor: '#ef4444', borderRadius: 4 },
+            { label: 'Promoción', data: proData, backgroundColor: '#8b5cf6', borderRadius: 4 },
+            { label: 'Ruido', data: ruiData, backgroundColor: '#6b7280', borderRadius: 4 },
+            { label: 'Backlinks', data: blData, backgroundColor: '#f97316', borderRadius: 4 }
+        ];
+        entityChart.update();
+    }
+</script>
+{% endblock %}

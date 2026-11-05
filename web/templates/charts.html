@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Gráficas{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Visualizaciones</h1>
+    <p class="page-subtitle">Análisis visual del sentimiento de marca</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+    <!-- Sentiment Distribution -->
+    <div class="chart-container">
+        <h3 class="chart-title">Distribución de Sentimiento</h3>
+        <canvas id="pieChart" height="250"></canvas>
+    </div>
+
+    <!-- Source Breakdown -->
+    <div class="chart-container">
+        <h3 class="chart-title">Menciones por Fuente</h3>
+        <canvas id="barChart" height="250"></canvas>
+    </div>
+</div>
+
+<!-- Sentiment Comparison -->
+<div class="chart-container" style="margin-top: 1.5rem;">
+    <h3 class="chart-title">Comparación de Sentimiento</h3>
+    <canvas id="comparisonChart" height="150"></canvas>
+</div>
+
+<!-- Stats Summary -->
+<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 1rem; margin-top: 1.5rem;">
+    <div class="stat-card total">
+        <div class="stat-value">{{ stats.total_mentions }}</div>
+        <div class="stat-label">Total</div>
+    </div>
+    <div class="stat-card positive">
+        <div class="stat-value">{{ stats.positive }}</div>
+        <div class="stat-label">Positivo</div>
+    </div>
+    <div class="stat-card negative">
+        <div class="stat-value">{{ stats.negative }}</div>
+        <div class="stat-label">Negativo</div>
+    </div>
+    <div class="stat-card neutral">
+        <div class="stat-value">{{ stats.neutral }}</div>
+        <div class="stat-label">Neutro</div>
+    </div>
+    <div class="stat-card" style="border-top: 3px solid var(--fg-dim);">
+        <div class="stat-value">{{ stats.noise }}</div>
+        <div class="stat-label">Ruido</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Securely transfer JSON data from Flask to JS -->
+<script id="sources-data" type="application/json">
+{{ stats.sources | tojson | safe }}
+</script>
+
+<script>
+    const colors = {
+        positive: '#9ece6a',
+        negative: '#f7768e',
+        neutral: '#7aa2f7',
+        noise: '#565f89',
+        accent: '#9d7cd8'
+    };
+
+    // Pie Chart
+    const pieCanvas = document.getElementById('pieChart');
+    if (pieCanvas && typeof Chart !== 'undefined') {
+        new Chart(pieCanvas, {
+            type: 'doughnut',
+            data: {
+                labels: ['Positivo', 'Negativo', 'Neutro', 'Ruido'],
+                datasets: [{
+                    data: [{{ stats.positive }}, {{ stats.negative }}, {{ stats.neutral }}, {{ stats.noise }}],
+    backgroundColor: [colors.positive, colors.negative, colors.neutral, colors.noise],
+        borderColor: '#1a1b26',
+            borderWidth: 3
+                }]
+            },
+    options: {
+        responsive: true,
+            maintainAspectRatio: false,
+                plugins: {
+            legend: {
+                position: 'right',
+                    labels: { color: '#a9b1d6', padding: 15 }
+            }
+        }
+    }
+        });
+    }
+
+    // Bar Chart
+    let sources = {};
+    try {
+        const sourcesData = document.getElementById('sources-data');
+        if (sourcesData) {
+            sources = JSON.parse(sourcesData.textContent) || {};
+        }
+    } catch (e) {
+        console.error("Error loading sources data:", e);
+    }
+
+    const barCanvas = document.getElementById('barChart');
+    if (barCanvas && typeof Chart !== 'undefined') {
+        new Chart(barCanvas, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(sources),
+                datasets: [{
+                    label: 'Menciones',
+                    data: Object.values(sources),
+                    backgroundColor: colors.accent,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: { legend: { display: false }},
+                scales: {
+                    x: { ticks: { color: '#a9b1d6' }, grid: { color: '#414868' }},
+                    y: { ticks: { color: '#a9b1d6' }, grid: { display: false }}
+                }
+            }
+        });
+    }
+
+    // Comparison Chart
+    const comparisonCanvas = document.getElementById('comparisonChart');
+    if (comparisonCanvas && typeof Chart !== 'undefined') {
+        new Chart(comparisonCanvas, {
+            type: 'bar',
+            data: {
+                labels: ['Análisis de Sentimiento'],
+                datasets: [
+                    { label: 'Positivo', data: [{{ stats.positive }}], backgroundColor: colors.positive
+            },
+                    { label: 'Negativo', data: [{{ stats.negative }}], backgroundColor: colors.negative },
+    { label: 'Neutro', data: [{{ stats.neutral }}], backgroundColor: colors.neutral },
+    { label: 'Ruido', data: [{{ stats.noise }}], backgroundColor: colors.noise }
+                ]
+            },
+    options: {
+        responsive: true,
+            maintainAspectRatio: false,
+                plugins: {
+            legend: {
+                position: 'top',
+                    labels: { color: '#a9b1d6' }
+            }
+        },
+        scales: {
+            x: { stacked: true, ticks: { color: '#a9b1d6' }, grid: { display: false }},
+            y: { stacked: true, ticks: { color: '#a9b1d6' }, grid: { color: '#414868' }}
+        }
+    }
+        });
+    }
+</script>
+{% endblock %}

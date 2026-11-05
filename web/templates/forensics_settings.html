@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Configuración Backlinks{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Configuración Backlinks</h1>
+        <p class="page-subtitle">Personaliza umbrales de riesgo, autoridad y palabras clave tóxicas</p>
+    </div>
+</div>
+
+<div style="max-width: 800px;">
+    <form id="forensicsConfigForm" class="card">
+        <h3 class="card-title" style="margin-bottom: 1.5rem;">Parámetros de Riesgo de Análisis</h3>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+            <div class="form-group">
+                <label class="form-label">Umbral Tóxico (0-100)</label>
+                <input type="number" name="toxic_threshold" class="form-input" value="{{ config.toxic_threshold }}"
+                    min="1" max="100">
+                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">Puntajes por encima de este valor
+                    serán marcados como "Tóxico".
+                </p>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Umbral Sospechoso (0-100)</label>
+                <input type="number" name="suspicious_threshold" class="form-input"
+                    value="{{ config.suspicious_threshold }}" min="1" max="100">
+                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">Puntajes por encima de este valor
+                    serán marcados como "Sospechoso".</p>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Palabras Clave Tóxicas (Separadas por comas)</label>
+            <textarea name="toxic_keywords" class="form-input" rows="5"
+                style="font-family: monospace;">{{ config.toxic_keywords | join(', ') }}</textarea>
+            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">Palabras clave que indican alto riesgo
+                cuando se encuentran en el contenido de backlinks.</p>
+        </div>
+
+        <div style="margin-top: 2rem; display: flex; justify-content: flex-end;">
+            <button type="submit" class="btn btn-primary">Guardar Configuración</button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('forensicsConfigForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = {
+            toxic_threshold: parseInt(formData.get('toxic_threshold')),
+            suspicious_threshold: parseInt(formData.get('suspicious_threshold')),
+            toxic_keywords: formData.get('toxic_keywords').split(',').map(k => k.trim()).filter(k => k)
+        };
+
+        try {
+            const resp = await fetch('/api/forensics/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await resp.json();
+            if (result.success) {
+                alert('¡Configuración guardada exitosamente!');
+            } else {
+                alert('Error: ' + result.error);
+            }
+        } catch (err) {
+            alert('Error de conexión');
+        }
+    });
+</script>
+{% endblock %}

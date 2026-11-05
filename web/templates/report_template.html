@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte Ejecutivo - {{ report_id }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            color: #333;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 20mm;
+            margin: 10mm auto;
+            border: 1px solid #d3d3d3;
+            border-radius: 5px;
+            background: white;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        @media print {
+            @page {
+                size: A4;
+                margin: 20mm;
+                /* Standard margin for WeasyPrint */
+            }
+
+            body {
+                background: white;
+                margin: 0;
+                font-family: Arial, sans-serif;
+            }
+
+            .page {
+                border: none;
+                box-shadow: none;
+                margin: 0;
+                padding: 0;
+                width: 100%;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            /* WeasyPrint Fixed Header (Top-Right/Left/Center boxes) */
+            /* WeasyPrint allows fixed positioning relative to the page area */
+            .print-overlay-header {
+                position: fixed;
+                top: -15mm;
+                /* Slightly up into margin */
+                left: 0;
+                right: 0;
+                height: 15mm;
+                text-align: center;
+                border-bottom: 2px solid #3b82f6;
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                background: white;
+            }
+
+            /* WeasyPrint Fixed Footer */
+            .print-overlay-footer {
+                position: fixed;
+                bottom: -15mm;
+                /* Slightly down into margin */
+                left: 0;
+                right: 0;
+                height: 10mm;
+                text-align: center;
+                font-size: 9pt;
+                color: #666;
+                border-top: 1px solid #ddd;
+                display: flex !important;
+                justify-content: space-between;
+                align-items: center;
+                background: white;
+                padding-top: 5px;
+            }
+
+            /* Paginator using CSS counters */
+            .print-overlay-footer::after {
+                content: "Página " counter(page);
+            }
+
+            /* Avoid breaks */
+            h2,
+            h3,
+            .chart-container,
+            tr {
+                page-break-inside: avoid;
+            }
+
+            /* Force color printing */
+            * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+
+        .print-overlay-header,
+        .print-overlay-footer {
+            display: none;
+        }
+
+        .header {
+            width: 100%;
+            margin-bottom: 30px;
+        }
+
+        .header img {
+            width: 100%;
+            height: auto;
+        }
+
+        .footer {
+            width: 100%;
+            margin-top: 50px;
+            text-align: center;
+        }
+
+        @media print {
+            .footer {
+                display: none !important;
+            }
+        }
+
+        .footer img {
+            width: 100%;
+            height: auto;
+        }
+
+        h1 {
+            font-size: 24pt;
+            color: #000;
+            margin-bottom: 10px;
+        }
+
+        h2 {
+            font-size: 18pt;
+            color: #333;
+            margin-top: 30px;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 5px;
+        }
+
+        h3 {
+            font-size: 14pt;
+            color: #666;
+            margin-top: 20px;
+        }
+
+        .meta-info {
+            font-size: 10pt;
+            color: #666;
+            margin-bottom: 40px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 10pt;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f3f4f6;
+            font-weight: bold;
+        }
+
+        .risk-badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: white;
+            font-size: 9pt;
+        }
+
+        .risk-HIGH,
+        .risk-CRÍTICO {
+            background-color: #ef4444;
+        }
+
+        .risk-MEDIUM,
+        .risk-ALTO {
+            background-color: #f59e0b;
+        }
+
+        .risk-LOW,
+        .risk-BAJO {
+            background-color: #10b981;
+        }
+
+        .summary-box {
+            background: #f8fafc;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+        }
+
+        .bar-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        /* Screen styles for print overlays */
+        @media screen {
+
+            .print-overlay-header,
+            .print-overlay-footer {
+                display: none;
+            }
+
+            .content-spacer {
+                margin: 0;
+                padding: 0;
+            }
+        }
+
+        .bar-label {
+            width: 120px;
+            font-size: 10pt;
+            font-weight: bold;
+            color: #4b5563;
+        }
+
+        .bar-track {
+            flex-grow: 1;
+            background: #e5e7eb;
+            height: 18px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+        }
+
+        .bar-value {
+            width: 50px;
+            text-align: right;
+            font-size: 10pt;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .bg-red {
+            background: #ef4444;
+        }
+
+        .bg-green {
+            background: #10b981;
+        }
+
+        .bg-blue {
+            background: #3b82f6;
+        }
+
+        .bg-purple {
+            background: #8b5cf6;
+        }
+
+        .bg-gray {
+            background: #9ca3af;
+        }
+
+        .evidence-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .evidence-item {
+            padding: 10px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 9pt;
+        }
+
+        .page-break {
+            page-break-before: always;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Print Fixed Elements -->
+    <div class="print-overlay-header icon-container">
+        <img src="{{ url_for('static', filename='report_images/image1.png') }}"
+            style="height: 50px; max-width: 100%; object-fit: contain;">
+    </div>
+
+    <div class="print-overlay-footer">
+        <div style="float: left;">Brand Sentinel - Reporte Confidencial</div>
+        <div style="float: right;">Generado el: {{ generated_at }}</div>
+        <div style="clear: both;"></div>
+    </div>
+
+    <div class="page content-spacer">
+        <!-- Screen Header Image (hidden in print via logic or CSS if needed, but we keep it for screen) -->
+        <div class="header no-print">
+            <img src="{{ url_for('static', filename='report_images/image1.png') }}" alt="Header">
+        </div>
+
+        <!-- Title Section -->
+        <h1>Reporte de Ciberinteligencia</h1>
+        <div class="meta-info">
+            <strong>ID Reporte:</strong> {{ report_id }}<br>
+            <strong>Fecha de Generación:</strong> {{ generated_at }}<br>
+            <strong>Clasificación:</strong> CONFIDENCIAL
+        </div>
+
+        <!-- Executive Summary -->
+        <div class="summary-box">
+            <h3>Resumen Ejecutivo</h3>
+            <p>
+                Este documento presenta los resultados de los análisis modulares seleccionados.
+                Los hallazgos de seguridad y sentimiento de marca han sido recopilados y evaluados por la plataforma
+                <strong>Brand Sentinel</strong>,
+                cubriendo los vectores aplicables (redes, fugas, OSINT y reputación).
+            </p>
+        </div>
+
+        <!-- SPIDERFOOT SECTION -->
+        {% if 'spiderfoot' in sections %}
+        <h2>Análisis de Superficie de Ataque (SpiderFoot)</h2>
+        {% if spiderfoot.objective %}<p><strong>Objetivo:</strong> {{ spiderfoot.objective }}</p>{% endif %}
+        <p><strong>Escaneo:</strong> {{ spiderfoot.scan_name }}</p>
+
+        {% if options.spiderfoot_summary %}
+        <table style="width: 50%; margin-bottom: 20px;">
+            <tr>
+                <th>Total Hallazgos</th>
+                <td>{{ spiderfoot.total_findings }}</td>
+            </tr>
+            <tr>
+                <th>Hallazgos de Alto Riesgo</th>
+                <td style="color: #ef4444; font-weight: bold;">{{ spiderfoot.high_risk_count }}</td>
+            </tr>
+        </table>
+        {% endif %}
+
+        {% if options.spiderfoot_critical and spiderfoot.critical_findings %}
+        <h3>Hallazgos Críticos y de Alto Riesgo</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Categoría</th>
+                    <th>Valor Detectado</th>
+                    <th>Módulo / Fuente</th>
+                    <th>Severidad</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in spiderfoot.critical_findings %}
+                <tr>
+                    <td>{{ item.category }}</td>
+                    <td style="word-break: break-all;">{{ item.value }}</td>
+                    <td>{{ item.module }}</td>
+                    <td><span class="risk-badge risk-{{ item.severity }}">{{ item.severity }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        {% if spiderfoot.categories and options.spiderfoot_summary %}
+        <div style="margin-top: 30px;"></div>
+        <h3>Desglose Total por Categoría</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Categoría</th>
+                    <th>Total Hallazgos</th>
+                    <th>Alto (+Crítico)</th>
+                    <th>Medio</th>
+                    <th>Bajo (+Info)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cat in spiderfoot.categories %}
+                <tr>
+                    <td>{{ cat.name }}</td>
+                    <td><strong>{{ cat.total }}</strong></td>
+                    <td
+                        style="color: {{ '#ef4444' if cat.high > 0 else '#333' }}; font-weight: {{ 'bold' if cat.high > 0 else 'normal' }};">
+                        {{ cat.high }}</td>
+                    <td style="color: {{ '#f59e0b' if cat.medium > 0 else '#333' }};">{{ cat.medium }}</td>
+                    <td>{{ cat.low }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+        {% endif %}
+
+        <!-- SENTIMENT SECTION -->
+        {% if 'sentiment' in sections %}
+        <h2>Análisis de Sentimiento de Marca</h2>
+        {% if sentiment.objective %}<p><strong>Objetivo:</strong> {{ sentiment.objective }}</p>{% endif %}
+        <p><strong>Escaneo:</strong> {{ sentiment.scan_name }}</p>
+
+        {% if options.sentiment_summary %}
+        <h3>KPIs de Reputación</h3>
+        <table>
+            <tr>
+                <th>Menciones Totales</th>
+                <td>{{ sentiment.stats.total_mentions }}</td>
+                <th>Polaridad Promedio</th>
+                <td>{{ sentiment.stats.avg_polarity }}%</td>
+            </tr>
+            <tr>
+                <th>Positivas</th>
+                <td style="color: #10b981;">{{ sentiment.stats.positive }}</td>
+                <th>Negativas (Riesgo)</th>
+                <td style="color: #ef4444; font-weight: bold;">{{ sentiment.stats.negative }}</td>
+            </tr>
+        </table>
+        {% endif %}
+
+        {% if options.sentiment_graphs %}
+        <h3>Distribución de Sentimiento</h3>
+        <div class="chart-container">
+            {% set total = sentiment.stats.total_mentions if sentiment.stats.total_mentions > 0 else 1 %}
+
+            <div class="bar-row">
+                <div class="bar-label">Positivo</div>
+                <div class="bar-track">
+                    <div class="bar-fill bg-green"
+                        style="width: {{ (sentiment.stats.positive / total * 100)|round(1) }}%"></div>
+                </div>
+                <div class="bar-value">{{ (sentiment.stats.positive / total * 100)|round(1) }}%</div>
+            </div>
+
+            <div class="bar-row">
+                <div class="bar-label">Neutro</div>
+                <div class="bar-track">
+                    <div class="bar-fill bg-blue"
+                        style="width: {{ (sentiment.stats.neutral / total * 100)|round(1) }}%"></div>
+                </div>
+                <div class="bar-value">{{ (sentiment.stats.neutral / total * 100)|round(1) }}%</div>
+            </div>
+
+            <div class="bar-row">
+                <div class="bar-label">Negativo</div>
+                <div class="bar-track">
+                    <div class="bar-fill bg-red"
+                        style="width: {{ (sentiment.stats.negative / total * 100)|round(1) }}%"></div>
+                </div>
+                <div class="bar-value">{{ (sentiment.stats.negative / total * 100)|round(1) }}%</div>
+            </div>
+
+            <div class="bar-row">
+                <div class="bar-label">Promoción</div>
+                <div class="bar-track">
+                    <div class="bar-fill bg-purple"
+                        style="width: {{ (sentiment.stats.promocion / total * 100)|round(1) }}%"></div>
+                </div>
+                <div class="bar-value">{{ (sentiment.stats.promocion / total * 100)|round(1) }}%</div>
+            </div>
+
+            <div class="bar-row">
+                <div class="bar-label">Ruido</div>
+                <div class="bar-track">
+                    <div class="bar-fill bg-gray" style="width: {{ (sentiment.stats.noise / total * 100)|round(1) }}%">
+                    </div>
+                </div>
+                <div class="bar-value">{{ (sentiment.stats.noise / total * 100)|round(1) }}%</div>
+            </div>
+        </div>
+
+        {% if sentiment.stats.source_categories %}
+        <h3>Distribución por Categoría de Fuente</h3>
+        <div class="chart-container">
+            {% set total_src = sentiment.stats.source_categories.values()|sum %}
+            {% set total_src = total_src if total_src > 0 else 1 %}
+
+            {% for cat_name, cat_count in sentiment.stats.source_categories.items() %}
+            <div class="bar-row">
+                <div class="bar-label" style="font-size: 8pt; width: 140px;">{{ cat_name }}</div>
+                <div class="bar-track">
+                    <div class="bar-fill bg-blue" style="width: {{ (cat_count / total_src * 100)|round(1) }}%"></div>
+                </div>
+                <div class="bar-value">{{ (cat_count / total_src * 100)|round(1) }}%</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if sentiment.stats.types_detail %}
+    <div style="margin-top: 30px;"></div>
+    <h3>Distribución por Tipo de Competencia</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Tipo de Competencia</th>
+                <th>Total Menciones</th>
+                <th>Positivas</th>
+                <th>Neutras</th>
+                <th>Negativas</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for comp_type, details in sentiment.stats.types_detail.items() %}
+            <tr>
+                <td>{{ comp_type }}</td>
+                <td><strong>{{ details.Total }}</strong></td>
+                <td style="color: #10b981;">{{ details.get('Positivo', 0) }}</td>
+                <td style="color: #3b82f6;">{{ details.get('Neutro', 0) }}</td>
+                <td style="color: #ef4444;">{{ details.get('Negativo', 0) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% endif %}
+
+    {% if options.sentiment_top and sentiment.top_mentions %}
+    <div style="margin-top: 30px;"></div>
+    <h3>Top 10 Menciones de Riesgo Detectadas</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Texto / Fragmento</th>
+                <th>Fuente</th>
+                <th>Score Negativo</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for mention in sentiment.top_mentions %}
+            <tr>
+                <td style="font-size: 9pt;">{{ mention.text[:150] }}...</td>
+                <td>{{ mention.source }}</td>
+                <td style="color: #ef4444; font-weight: bold;">
+                    {% if mention.Distilroberta_score_negative %}
+                    {{ (mention.Distilroberta_score_negative * 100)|round(1) }}%
+                    {% else %}
+                    N/A
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+    {% endif %}
+
+    <!-- FORENSICS SECTION -->
+    {% if 'forensics' in sections %}
+    <h2>Análisis de Riesgo SEO y Backlinks</h2>
+    {% if forensics.objective %}<p><strong>Objetivo:</strong> {{ forensics.objective }}</p>{% endif %}
+
+    {% if options.forensics_summary %}
+    <h3>Resumen del Análisis</h3>
+    <table>
+        <tr>
+            <th>Archivo Escaneado</th>
+            <td>{{ forensics.filename }}</td>
+            <th>Fecha</th>
+            <td>{{ forensics.date }}</td>
+        </tr>
+        <tr>
+            <th>Enlaces Analizados</th>
+            <td>{{ forensics.total_links }}</td>
+            <th>Estado</th>
+            <td>{{ forensics.scan_status | upper }}</td>
+        </tr>
+    </table>
+
+    <table style="margin-top: 15px;">
+        <tr>
+            <th style="background-color: #f7768e; color: white;">Tóxicos (KRI &gt; 70)</th>
+            <th style="background-color: #e0af68; color: white;">Sospechosos (KRI &gt; 30)</th>
+            <th style="background-color: #9ece6a; color: white;">Seguros</th>
+        </tr>
+        <tr>
+            <td style="text-align: center; font-size: 14pt; font-weight: bold; color: #f7768e;">{{
+                forensics.counts.toxic }}</td>
+            <td style="text-align: center; font-size: 14pt; font-weight: bold; color: #e0af68;">{{
+                forensics.counts.suspicious }}</td>
+            <td style="text-align: center; font-size: 14pt; font-weight: bold; color: #9ece6a;">{{
+                forensics.counts.safe }}</td>
+        </tr>
+    </table>
+
+    <div
+        style="background-color: #f8fafc; border-left: 4px solid #3b82f6; padding: 10px; margin: 15px 0; font-size: 10pt; color: #334155;">
+        <strong style="color: #1e293b;">Metodología KRI (Key Risk Indicator):</strong> El sistema evalúa el nivel de
+        toxicidad y riesgo SEO de cada enlace entrante en una escala de 0 a 100. La puntuación ignora dominios de
+        listas blancas y suma puntos en base a factores combinados:
+        <ul style="margin-top: 5px; margin-bottom: 5px; padding-left: 20px;">
+            <li><strong>Disponibilidad:</strong> Enlaces rotos o con códigos de error HTTP 4xx/5xx (+20 pts).</li>
+            <li><strong>Contexto Tóxico:</strong> Presencia de palabras clave maliciosas (ej. apuestas, contenido
+                adulto, fraudes) en la página o texto circundante (+15 pts por coincidencia).</li>
+            <li><strong>Reputación de Dominio:</strong> TLDs genéricos o redes frecuentemente usadas para spam (ej.
+                .xyz, .top, .online) (+10 pts).</li>
+        </ul>
+        <em>Escala de Severidad:</em> <strong style="color: #f7768e;">Tóxico</strong> (≥ 70 pts), <strong
+            style="color: #e0af68;">Sospechoso</strong> (30-69 pts), <strong style="color: #9ece6a;">Seguro</strong>
+        (0-29 pts).
+    </div>
+    {% endif %}
+
+    {% if options.forensics_evidence and forensics.threats %}
+    <h3>Top 10 Enlaces de Riesgo (Evidencia)</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>URL</th>
+                <th>Dominio (DA)</th>
+                <th>Estado</th>
+                <th>Riesgo (KRI)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for threat in forensics.threats %}
+            <tr>
+                <td style="font-size: 9pt; max-width: 250px; word-break: break-all;">
+                    {{ threat.url }}<br>
+                    <span style="color: #666; font-size: 8pt;">{{ threat.context[:80] }}...</span>
+                    {% if threat.reasons %}
+                    <ul style="margin: 4px 0 0 0; padding-left: 15px; font-size: 8pt; color: #f7768e;">
+                        {% for reason in threat.reasons %}
+                        <li>{{ reason }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </td>
+                <td>{{ threat.domain }}<br><span style="font-size: 8pt; color: gray;">DA: {{ threat.da }}</span>
+                </td>
+                <td style="text-align: center;">{{ threat.status_code }}</td>
+                <td
+                    style="text-align: center; font-weight: bold; {% if threat.score > 70 %}color: #f7768e;{% elif threat.score > 30 %}color: #e0af68;{% else %}color: #9ece6a;{% endif %}">
+                    {{ threat.score }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% endif %}
+
+    <!-- Footer Image -->
+    <div class="footer">
+        <img src="{{ url_for('static', filename='report_images/image2.png') }}" alt="Footer">
+    </div>
+
+    </div>
+
+    <div class="no-print" style="position: fixed; bottom: 20px; right: 20px;">
+        <button onclick="window.print()"
+            style="padding: 15px 30px; background: #3b82f6; color: white; border: none; border-radius: 50px; font-size: 16px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+            🖨️ Imprimir / Guardar como PDF
+        </button>
+    </div>
+
+</body>
+
+</html>

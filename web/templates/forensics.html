@@ -1,0 +1,621 @@
+{% extends "base.html" %}
+
+{% block title %}Análisis de Backlinks (SEO){% endblock %}
+
+{% block head %}
+<style>
+    :root {
+        --tokyo-bg: #1a1b26;
+        --tokyo-surface: #24283b;
+        --tokyo-fg: #c0caf5;
+        --tokyo-accent: #7aa2f7;
+        --tokyo-danger: #f7768e;
+        --tokyo-warning: #e0af68;
+        --tokyo-success: #9ece6a;
+    }
+
+    .forensics-container {
+        color: var(--tokyo-fg);
+    }
+
+    .upload-zone {
+        border: 2px dashed var(--tokyo-accent);
+        background: rgba(122, 162, 247, 0.05);
+        border-radius: var(--radius-md);
+        padding: 3rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        margin-bottom: 2rem;
+    }
+
+    .upload-zone:hover {
+        background: rgba(122, 162, 247, 0.1);
+        border-color: var(--tokyo-success);
+    }
+
+    .stats-tray {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card-forensic {
+        background: var(--tokyo-surface);
+        padding: 1.25rem;
+        border-radius: var(--radius-sm);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .threat-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--tokyo-surface);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+    }
+
+    .threat-table th {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 1rem;
+        text-align: left;
+        font-weight: 600;
+    }
+
+    .threat-table td {
+        padding: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .risk-badge {
+        padding: 0.25rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .risk-high {
+        background: rgba(247, 118, 142, 0.2);
+        color: #f7768e;
+        border: 1px solid #f7768e;
+    }
+
+    .risk-med {
+        background: rgba(224, 175, 104, 0.2);
+        color: #e0af68;
+        border: 1px solid #e0af68;
+    }
+
+    .risk-low {
+        background: rgba(158, 206, 106, 0.2);
+        color: #9ece6a;
+        border: 1px solid #9ece6a;
+    }
+
+    progress {
+        width: 100%;
+        height: 8px;
+        border-radius: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="forensics-container">
+    <div class="header-section">
+        <h1 style="color: var(--tokyo-fg);">Dashboard de Backlinks & SEO</h1>
+        <p style="color: #565f89;">Análisis profundo de enlaces entrantes, reputación de dominio y detección de
+            toxicidad.</p>
+    </div>
+
+    <!-- Drag & Drop Section -->
+    <div id="dropZone" class="upload-zone">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">📁</div>
+        <h3 style="color: var(--tokyo-fg);">Arrastrar y Soltar CSV de GSC</h3>
+        <p style="color: #565f89;">o haz clic para buscar en tu computadora</p>
+        <input type="file" id="fileInput" accept=".csv" style="display: none;">
+    </div>
+
+    <!-- Real-time Scan Status -->
+    <div id="scanStatus" class="stats-tray" style="display: none;">
+        <!-- Filled by JS -->
+    </div>
+
+    <!-- Risk Analytics Section -->
+    <div class="card" style="background: var(--tokyo-surface); border: none; margin-bottom: 2rem;">
+        <div class="card-header"
+            style="border-bottom-color: rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="color: var(--tokyo-accent);">Análisis de Riesgo y Mapa de Calor</h2>
+            <div class="stats-summary" style="font-size: 0.8rem; color: var(--tokyo-fg);">
+                <span style="color: var(--tokyo-danger)">Tóxico: <strong>{{ risk_counts.toxic }}</strong></span> |
+                <span style="color: var(--tokyo-warning)">Sospechoso: <strong>{{ risk_counts.suspicious
+                        }}</strong></span> |
+                <span style="color: var(--tokyo-success)">Seguro: <strong>{{ risk_counts.safe }}</strong></span>
+            </div>
+        </div>
+        <div class="card-body" style="padding: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            <!-- Histogram -->
+            <div>
+                <h4 style="color: #565f89; margin-bottom: 1rem; font-size: 0.9rem;">Distribución de Riesgo de Backlinks
+                    (Conteo por Score)</h4>
+                <div style="height: 200px;">
+                    <canvas id="riskHistogram"></canvas>
+                </div>
+            </div>
+            <!-- Pixel Heatmap -->
+            <div>
+                <h4 style="color: #565f89; margin-bottom: 1rem; font-size: 0.9rem;">Mapa de Densidad de Riesgo (1 Bloque
+                    = 1 Enlace)
+                </h4>
+                <div id="pixelHeatmap"
+                    style="display: flex; flex-wrap: wrap; gap: 2px; max-height: 200px; overflow-y: auto; padding-right: 5px;">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graph Visualization Section -->
+    <div class="card" style="background: var(--tokyo-surface); border: none; margin-bottom: 2rem;">
+        <div class="card-header"
+            style="border-bottom-color: rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="color: var(--tokyo-accent);">Visualización de Red de Backlinks</h2>
+            <button class="btn btn-sm btn-outline-secondary" onclick="toggleGraph()">Mostrar/Ocultar Grafo</button>
+        </div>
+        <div class="card-body" id="graphContainer"
+            style="display: none; height: 500px; border: 1px solid rgba(255,255,255,0.05);">
+            <div id="networkGraph" style="width: 100%; height: 100%;"></div>
+        </div>
+    </div>
+
+    <!-- Results Table with Filters -->
+    <div class="card" style="background: var(--tokyo-surface); border: none;">
+        <div class="card-header"
+            style="border-bottom-color: rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <h2 style="color: var(--tokyo-accent); margin: 0;">Amenazas Identificadas</h2>
+
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <!-- Search -->
+                <input type="text" id="tableSearch" placeholder="Buscar URL, Dominio..." class="form-control"
+                    style="width: 200px; padding: 0.4rem; font-size: 0.9rem;">
+
+                <!-- Filters -->
+                <button class="btn btn-sm" onclick="filterTable('all')"
+                    style="background: rgba(255,255,255,0.1);">Todos</button>
+                <button class="btn btn-sm" onclick="filterTable('toxic')"
+                    style="background: rgba(247, 118, 142, 0.2); color: #f7768e;">Tóxicos</button>
+                <button class="btn btn-sm" onclick="filterTable('broken')"
+                    style="background: rgba(224, 175, 104, 0.2); color: #e0af68;">Rotos (404)</button>
+
+                <!-- Actions -->
+                <div
+                    style="border-left: 1px solid rgba(255,255,255,0.2); padding-left: 0.5rem; display: flex; gap: 0.5rem;">
+                    <a href="{{ url_for('export_forensics_csv') }}" class="btn btn-sm btn-primary"
+                        style="display: flex; align-items: center; gap: 0.3rem;">
+                        <span>⬇️ CSV</span>
+                    </a>
+                    <button onclick="verifyAllLinks()" class="btn btn-sm btn-warning"
+                        style="display: flex; align-items: center; gap: 0.3rem;">
+                        <span>🔄 Verificar Todos</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div style="overflow-x: auto;">
+            <table class="threat-table" id="threatsTable">
+                <thead>
+                    <tr>
+                        <th>URL / Contexto</th>
+                        <th>Dominio / DA</th>
+                        <th>Riesgo (KRI)</th>
+                        <th>Estado / Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for threat in threats %}
+                    <tr>
+                        <td style="max-width: 350px;">
+                            <a href="{{ threat.url }}" target="_blank"
+                                style="color: var(--tokyo-accent); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{
+                                threat.url }}</a>
+                            <div style="font-size: 0.75rem; color: #565f89; margin-top: 4px;">
+                                {% if 'Positivo' in threat.context or 'Positive' in threat.context %}
+                                <span style="color: var(--tokyo-success); margin-right: 5px;">😊 Positivo</span>
+                                {% elif 'Negativo' in threat.context or 'Negative' in threat.context %}
+                                <span style="color: var(--tokyo-danger); margin-right: 5px;">😡 Negativo</span>
+                                {% else %}
+                                <span style="color: #6b7280; margin-right: 5px;">😐 Neutro</span>
+                                {% endif %}
+                                <span title="{{ threat.context }}">{{ threat.context.split('|')[-1][:50] }}...</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-weight: bold;">{{ threat.domain }}</div>
+                            <div style="font-size: 0.75rem;">
+                                <span
+                                    style="background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px;">DA:
+                                    {{ threat.da or 0 }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <strong>{{ threat.score }}</strong>
+                                <div style="width: 50px; background: #333; height: 4px; border-radius: 2px;">
+                                    <div class="progress-fill"
+                                        style="width: {{ threat.score }}%; background: {{ '#f7768e' if threat.score > 70 else '#e0af68' if threat.score > 30 else '#9ece6a' }}; height: 100%;">
+                                    </div>
+                                </div>
+                            </div>
+        </div>
+        <div style="margin-top:2px;">
+            <span
+                class="risk-badge {% if threat.score > 70 %}risk-high{% elif threat.score > 30 %}risk-med{% else %}risk-low{% endif %}">
+                {% if threat.score > 70 %}TÓXICO{% elif threat.score > 30 %}SOSPECHOSO{% else
+                %}NEUTRAL{% endif %}
+            </span>
+        </div>
+        {% if threat.reasons %}
+        <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 3px;">
+            {% for reason in threat.reasons %}
+            <span
+                style="font-size: 0.65rem; background: rgba(247, 118, 142, 0.15); color: #f7768e; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(247, 118, 142, 0.3); display: inline-block; line-height: 1.2;">
+                ⚠️ {{ reason }}
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        </td>
+        <td>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span class="status-badge" id="status-{{ loop.index }}"
+                    style="font-family: monospace; {% if threat.status_code >= 400 %}color: #f7768e;{% else %}color: #9ece6a;{% endif %}">
+                    {{ threat.status_code }}
+                </span>
+                <button onclick="checkLink('{{ threat.url }}', '{{ loop.index }}')"
+                    style="background: transparent; border: 1px solid var(--tokyo-accent); color: var(--tokyo-accent); cursor: pointer; border-radius: 4px; padding: 2px 6px; font-size: 0.7rem;">
+                    🔄
+                </button>
+            </div>
+        </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+        </table>
+    </div>
+</div>
+</div>
+
+<script>
+    // Drag & Drop Logic
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+
+    dropZone.onclick = () => fileInput.click();
+
+    dropZone.ondragover = (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'var(--tokyo-success)';
+    };
+
+    dropZone.ondragleave = () => {
+        dropZone.style.borderColor = 'var(--tokyo-accent)';
+    };
+
+    dropZone.ondrop = (e) => {
+        e.preventDefault();
+        const files = e.dataTransfer.files;
+        if (files.length) handleUpload(files[0]);
+    };
+
+    fileInput.onchange = () => {
+        if (fileInput.files.length) handleUpload(fileInput.files[0]);
+    };
+
+    async function handleUpload(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch('/api/forensics/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('¡Escaneo iniciado exitosamente!');
+                updateStatusTray();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (e) {
+            alert('Falló la carga.');
+        }
+    }
+
+    async function updateStatusTray() {
+        try {
+            const res = await fetch('/api/forensics/status');
+            const data = await res.json();
+            const tray = document.getElementById('scanStatus');
+
+            if (data.scans.length > 0) {
+                tray.style.display = 'grid';
+                tray.innerHTML = data.scans.map(s => `
+                    <div class="stat-card-forensic" id="scan-card-${s.id}">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <p style="font-size: 0.75rem; color: #565f89; margin-bottom: 0.5rem; word-break: break-all;">${s.filename}</p>
+                            <button onclick="deleteScan('${s.id}')" style="background: none; border: none; color: #f7768e; cursor: pointer; padding: 0 0 0 5px;" title="Eliminar Análisis">🗑️</button>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="font-weight: 600;">${s.status.toUpperCase()}</span>
+                            <span>${s.processed}/${s.total}</span>
+                        </div>
+                        <progress value="${s.processed}" max="${s.total}"></progress>
+                    </div>
+                `).join('');
+            } else {
+                tray.style.display = 'none';
+            }
+        } catch (e) { }
+    }
+
+    // Refresh status every 5 seconds
+    setInterval(updateStatusTray, 5000);
+    updateStatusTray();
+
+    async function deleteScan(scanId) {
+        if (!confirm('¿Seguro que deseas eliminar este análisis del historial?')) return;
+
+        try {
+            const res = await fetch(`/api/forensics/scan/${scanId}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById(`scan-card-${scanId}`).remove();
+                updateStatusTray();
+            } else {
+                alert('Error al eliminar: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error de conexión.');
+        }
+    }
+
+    async function checkLink(url, index) {
+        const badge = document.getElementById(`status-${index}`);
+        badge.innerHTML = '⏳';
+
+        try {
+            const res = await fetch('/api/forensics/check_link', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url })
+            });
+            const data = await res.json();
+
+            badge.innerText = data.status_code;
+            if (data.status_code >= 400 || data.status_code === 0) {
+                badge.style.color = '#f7768e';
+            } else {
+                badge.style.color = '#9ece6a';
+            }
+        } catch (e) {
+            badge.innerText = 'ERR';
+            badge.style.color = '#f7768e';
+        }
+    }
+
+    // --- Graph & Filter Logic ---
+    let network = null;
+    let allThreats = {{ threats | tojson }};
+
+    function toggleGraph() {
+        const container = document.getElementById('graphContainer');
+        if (container.style.display === 'none') {
+            container.style.display = 'block';
+            if (!network) drawGraph();
+        } else {
+            container.style.display = 'none';
+        }
+    }
+
+    function drawGraph() {
+        const nodes = new vis.DataSet();
+        const edges = new vis.DataSet();
+        const addedNodes = new Set();
+
+        // Add Central Node (Self)
+        nodes.add({ id: 'ME', label: 'Mi Marca', color: '#7aa2f7', size: 30 });
+        addedNodes.add('ME');
+
+        allThreats.forEach(t => {
+            // Domain Node
+            if (!addedNodes.has(t.domain)) {
+                let color = '#9ece6a'; // Safe
+                if (t.score > 70) color = '#f7768e'; // Toxic
+                else if (t.score > 30) color = '#e0af68'; // Suspicious
+
+                nodes.add({ id: t.domain, label: t.domain, color: color });
+                addedNodes.add(t.domain);
+
+                // Edge to Me
+                edges.add({ from: t.domain, to: 'ME' });
+            }
+        });
+
+        const container = document.getElementById('networkGraph');
+        const data = { nodes: nodes, edges: edges };
+        const options = {
+            nodes: { shape: 'dot', size: 15, font: { color: '#c0caf5' } },
+            edges: { color: 'rgba(255,255,255,0.1)' },
+            physics: { stabilization: false },
+            layout: { randomSeed: 2 }
+        };
+        network = new vis.Network(container, data, options);
+    }
+
+    // Filter Logic
+    function filterTable(type) {
+        const rows = document.querySelectorAll('#threatsTable tbody tr');
+        rows.forEach(row => {
+            // Extract data from row (dirty parsing but effective for client-side)
+            const scoreText = row.querySelector('.risk-badge').innerText;
+            const statusText = row.querySelector('.status-badge').innerText;
+
+            let show = true;
+            if (type === 'toxic' && scoreText !== 'TÓXICO') show = false;
+            if (type === 'broken' && parseInt(statusText) < 400 && parseInt(statusText) !== 0) show = false;
+
+            row.style.display = show ? '' : 'none';
+        });
+    }
+
+    // Search Logic
+    document.getElementById('tableSearch').addEventListener('keyup', function () {
+        const query = this.value.toLowerCase();
+        const rows = document.querySelectorAll('#threatsTable tbody tr');
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(query) ? '' : 'none';
+        });
+    });
+
+    async function verifyAllLinks() {
+        if (!confirm('Esto verificará todos los enlaces en segundo plano. ¿Continuar?')) return;
+
+        try {
+            const res = await fetch('/api/forensics/verify_all', { method: 'POST' });
+            const data = await res.json();
+            alert(data.message);
+        } catch (e) {
+            alert('Error iniciando verificación');
+        }
+    }
+
+    async function startNewAnalysis() {
+        const domain = document.getElementById('targetDomain').value;
+        const depth = document.getElementById('searchDepth').value;
+        const entity = document.getElementById('targetEntity').value;
+
+        if (!domain || !entity) {
+            alert('Por favor completa todos los campos.');
+            return;
+        }
+
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('newAnalysisModal'));
+        modal.hide();
+
+        alert(`Iniciando análisis para ${domain}. Esto puede tomar unos minutos.`);
+
+        try {
+            const res = await fetch('/api/forensics/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ domain, depth, entity })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                alert('Análisis completado. Recargando...');
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error de conexión con el servidor.');
+        }
+    }
+
+    // --- Heatmap & Histogram Logic (Restored) ---
+    document.addEventListener('DOMContentLoaded', () => {
+        const rawData = {{ heatmap_data | tojson
+    }};
+    if (!rawData || rawData.length === 0) return;
+
+    // 1. Prepare Histogram Data
+    const bins = Array(10).fill(0); // 0-10, 10-20, ... 90-100
+    rawData.forEach(item => {
+        const index = Math.min(Math.floor(item.score / 10), 9);
+        bins[index]++;
+    });
+
+    // 2. Render Histogram
+    const ctx = document.getElementById('riskHistogram').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '80-90', '90-100'],
+            datasets: [{
+                label: 'Conteo de Enlaces',
+                data: bins,
+                backgroundColor: [
+                    '#9ece6a', '#9ece6a', '#9ece6a', // Safe (Green)
+                    '#e0af68', '#e0af68', '#e0af68', '#e0af68', // Suspicious (Yellow/Orange)
+                    '#f7768e', '#f7768e', '#f7768e'  // Toxic (Red)
+                ],
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function (context) {
+                            return context.raw + ' Enlaces';
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { color: '#565f89' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#565f89', font: { size: 10 } }
+                }
+            }
+        }
+    });
+
+    // 3. Render Pixel Heatmap
+    const pixelContainer = document.getElementById('pixelHeatmap');
+    pixelContainer.innerHTML = '';
+
+    // Sort by score desc for visual impact (reds first)
+    const sortedData = [...rawData].sort((a, b) => b.score - a.score);
+
+    sortedData.forEach(item => {
+        const el = document.createElement('div');
+        el.style.width = '8px';
+        el.style.height = '8px';
+        el.style.borderRadius = '2px';
+        el.style.cursor = 'help';
+
+        // Color logic
+        let color = '#9ece6a'; // Green
+        if (item.score >= 70) color = '#f7768e'; // Red
+        else if (item.score >= 30) color = '#e0af68'; // Yellow
+
+        // Interaction
+        el.title = `Puntaje: ${item.score}\nURL: ${item.url}`;
+        el.style.backgroundColor = color;
+        el.dataset.url = item.url;
+
+        // Optional: Click to open
+        el.onclick = () => window.open(item.url, '_blank');
+
+        pixelContainer.appendChild(el);
+    });
+    });
+</script>
+<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+{% endblock %}

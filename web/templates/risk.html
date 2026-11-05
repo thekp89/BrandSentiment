@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Evaluación de Riesgos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Evaluación de Riesgos</h1>
+        <p class="page-subtitle">Análisis de contenido de alto riesgo e identificación de amenazas</p>
+    </div>
+</div>
+
+<div class="stats-grid" style="margin-bottom: 1.5rem;">
+    <div class="stat-card negative">
+        <div class="stat-value">{{ stats.high_risk }}</div>
+        <div class="stat-label">Crítico/Alto Riesgo</div>
+    </div>
+    <div class="stat-card" style="border-color: var(--accent-orange);">
+        <div class="stat-value">{{ stats.negative }}</div>
+        <div class="stat-label">Menciones Negativas</div>
+    </div>
+    <div class="stat-card neutral">
+        <div class="stat-value">{{ stats.risk_rate }}%</div>
+        <div class="stat-label">Tasa de Riesgo</div>
+    </div>
+    <div class="stat-card total">
+        <div class="stat-value">{{ stats.total_mentions }}</div>
+        <div class="stat-label">Total Analizado</div>
+    </div>
+</div>
+
+<div class="card" style="margin-top: 1.5rem;">
+    <h3 class="card-title">Entidades y Fuentes Críticas</h3>
+    <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 1rem;">
+
+        <!-- Top Risk Entities -->
+        <div>
+            <h4 style="font-size: 0.9rem; color: #6b7280; margin-bottom: 0.75rem;">Entidades con Mayor Riesgo (por %
+                negativo)
+            </h4>
+            {% for entity, details in stats.entities_detail.items() | sort(attribute='1.Negativo', reverse=True) %}
+            {% if loop.index <= 5 and details.Total> 0 and details.Negativo > 0 %}
+                <div
+                    style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee;">
+                    <span>{{ entity }}</span>
+                    <span class="badge negative" style="cursor:pointer;"
+                        onclick="openDrillDown('{{ stats.scan_name }}', 'entity', '{{ entity }}', 'Negativo')">{{
+                        (details.Negativo / details.Total * 100)|round(1) }}% neg</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+        </div>
+
+        <!-- Top Risk Sources -->
+        <div>
+            <h4 style="font-size: 0.9rem; color: #6b7280; margin-bottom: 0.75rem;">Fuentes con Mayor Riesgo</h4>
+            {% for source, details in stats.sources_detail.items() | sort(attribute='1.Negativo', reverse=True) %}
+            {% if loop.index <= 5 and details.Total> 0 and details.Negativo > 0 %}
+                <div
+                    style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee;">
+                    <span>{{ source }}</span>
+                    <span class="badge negative" style="cursor:pointer;"
+                        onclick="openDrillDown('{{ stats.scan_name }}', 'source', '{{ source }}', 'Negativo')">{{
+                        (details.Negativo / details.Total * 100)|round(1) }}% neg</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-top: 1.5rem;">
+    <h3 class="card-title">Categorías de Riesgo (Análisis IA)</h3>
+
+    {% if stats.categories %}
+    <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1.5rem;">
+        {% for cat, count in stats.categories.items() %}
+        <div
+            style="padding: 1rem; background: #f8fafc; border-radius: var(--radius-sm); border-left: 3px solid {% if 'ataque' in cat|lower or 'attack' in cat|lower %}var(--negative){% else %}var(--accent-blue){% endif %};">
+            <div style="font-size: 0.7rem; text-transform: uppercase; color: #6b7280;">{{ cat }}</div>
+            <div style="font-size: 1.5rem; font-weight: 700;">{{ count }} publicaciones</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 2rem; color: #6b7280;">
+        <p>No se detectaron categorías de riesgo específicas de IA en este escaneo.</p>
+        <p style="font-size: 0.8rem;">Ejecuta un escaneo con <strong>--ai-analysis</strong> para una clasificación de
+            amenazas granular.
+        </p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

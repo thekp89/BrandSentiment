@@ -1,0 +1,478 @@
+{% extends "base.html" %}
+{% block title %}{{ entity }} - Análisis{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <a href="{{ url_for('entities_page', scan=scan_name) }}" class="btn btn-secondary" style="padding: 0.5rem;">
+                ← Volver
+            </a>
+            <h1 class="page-title">{{ entity }}</h1>
+        </div>
+        <p class="page-subtitle">Análisis de sentimiento detallado e historial de menciones</p>
+
+    </div>
+
+    <div class="card"
+        style="margin-left: auto; padding: 0.5rem 1rem; display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+        <div
+            style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 500; color: #6b7280; border-right: 1px solid #e5e7eb; padding-right: 1.5rem; margin-right: 0.5rem;">
+            <span>FILTROS INTERACTIVOS</span>
+        </div>
+
+        <!-- Mention Types -->
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <label class="form-checkbox">
+                <input type="checkbox" id="toggleNormal" checked onchange="applyInteractiveFilters()">
+                <span>Menciones</span>
+            </label>
+            <label class="form-checkbox">
+                <input type="checkbox" id="toggleBacklinks" checked onchange="applyInteractiveFilters()">
+                <span>Backlinks</span>
+            </label>
+        </div>
+
+        <div style="width: 1px; height: 20px; background: #e5e7eb;"></div>
+
+        <!-- Sentiments -->
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <label class="form-checkbox" style="color: var(--positive);">
+                <input type="checkbox" id="sentPos" checked onchange="applyInteractiveFilters()">
+                <span>Positivo</span>
+            </label>
+            <label class="form-checkbox" style="color: var(--neutral);">
+                <input type="checkbox" id="sentNeu" checked onchange="applyInteractiveFilters()">
+                <span>Neutro</span>
+            </label>
+            <label class="form-checkbox" style="color: var(--negative);">
+                <input type="checkbox" id="sentNeg" checked onchange="applyInteractiveFilters()">
+                <span>Negativo</span>
+            </label>
+            <label class="form-checkbox" style="color: #8b5cf6;">
+                <input type="checkbox" id="sentProm" checked onchange="applyInteractiveFilters()">
+                <span>Promoción</span>
+            </label>
+            <label class="form-checkbox" style="color: #6b7280;">
+                <input type="checkbox" id="sentRuido" checked onchange="applyInteractiveFilters()">
+                <span>Ruido</span>
+            </label>
+        </div>
+    </div>
+</div>
+
+<div class="stats-grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+    <!-- Sentiment Charts -->
+    <div class="card">
+        <h3 class="card-title">Distribución de Sentimiento</h3>
+        <div style="height: 250px; position: relative;">
+            <canvas id="sentimentPieChart"></canvas>
+        </div>
+        <div
+            style="margin-top: 1rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; font-size: 0.8rem;">
+            <div style="color: #22c55e; font-weight: 600;">● Pos: <span id="countPos">{{ stats.Positivo }}</span></div>
+            <div style="color: #3b82f6; font-weight: 600;">● Neu: <span id="countNeu">{{ stats.Neutro }}</span></div>
+            <div style="color: #ef4444; font-weight: 600;">● Neg: <span id="countNeg">{{ stats.Negativo }}</span></div>
+            <div style="color: #8b5cf6; font-weight: 600;">● Prom: <span id="countPro">{{ stats.Promocion }}</span>
+            </div>
+            <div style="color: #f97316; font-weight: 600;">● Links: <span id="countBL">{{ stats.Backlinks }}</span>
+            </div>
+            <div style="color: #6b7280; font-weight: 600;">● Ruido: <span id="countRuido">{{ stats.Ruido }}</span></div>
+        </div>
+    </div>
+
+    <!-- Source Categories Chart -->
+    <div class="card">
+        <h3 class="card-title">Distribución por Fuente</h3>
+        <div style="height: 250px; position: relative;">
+            <canvas id="sourceCategoriesChart"></canvas>
+        </div>
+        <div
+            style="margin-top: 1rem; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.8rem;">
+            {% for cat, count in stats.source_categories.items() %}
+            <div style="display: flex; justify-content: space-between;">
+                <span>{{ cat }}:</span>
+                <span style="font-weight: 600;">{{ count }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="card">
+        <h3 class="card-title">Métricas Clave</h3>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+            <div class="stat-card">
+                <div class="stat-value" id="statTotal">{{ stats.Total }}</div>
+                <div class="stat-label">Menciones Totales</div>
+            </div>
+            <div class="stat-card negative">
+                <div class="stat-value" id="statNegativeRate">{{ ((stats.Negativo / stats.Total * 100) | round(1)) if
+                    stats.Total > 0 else 0 }}%</div>
+                <div class="stat-label">Tasa Negativa</div>
+            </div>
+            <!-- Placeholder for more metrics if needed -->
+        </div>
+    </div>
+</div>
+
+<!-- Mentions List -->
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3 class="card-title">Historial de Menciones</h3>
+        <!-- Grouping Controls -->
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <label for="groupBySelect" style="font-size: 0.9rem; color: #6b7280;">Agrupar por:</label>
+            <select id="groupBySelect" class="form-select" style="padding: 0.25rem 0.5rem; font-size: 0.9rem;">
+                <option value="none">Ninguno (Lista)</option>
+                <option value="Fuente">Fuente</option>
+                <option value="Etiqueta">Sentimiento</option>
+            </select>
+        </div>
+    </div>
+
+    {% if mentions %}
+    <div id="mentionsContainer" style="overflow: auto;">
+        <!-- Base Table (Initial View) -->
+        <table class="table" style="width: 100%;">
+            <thead>
+                <tr style="text-align: left; color: #6b7280; border-bottom: 1px solid #eee;">
+                    <th style="padding: 1rem;">Fuente</th>
+                    <th style="padding: 1rem;">Sentimiento</th>
+                    <th style="padding: 1rem;">Fragmento</th>
+                    <th style="padding: 1rem;">Fecha</th>
+                    <th style="padding: 1rem; width: 300px;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="mentionsTableBody">
+                <!-- Filled by JS or server-side initial render -->
+                {% for item in mentions %}
+                <tr style="border-bottom: 1px solid #f9f9f9;" data-source="{{ item.Fuente }}"
+                    data-sentiment="{{ item.Etiqueta }}">
+                    <td style="padding: 1rem;"><span class="badge">{{ item.Categoria_Fuente or item.Fuente }}</span>
+                    </td>
+                    <td style="padding: 1rem;">
+                        <span
+                            class="badge {% if item.Etiqueta == 'Positivo' %}positive{% elif item.Etiqueta == 'Negativo' %}negative{% elif item.Etiqueta == 'Promocion' %}promotion{% elif item.Etiqueta == 'Ruido' %}gray{% else %}neutral{% endif %}">
+                            {{ item.Etiqueta }}
+                        </span>
+                    </td>
+                    <td style="padding: 1rem; max-width: 400px;">
+                        <div style="font-size: 0.9rem;">{{ item.comentario[:100] }}...</div>
+                        <a href="{{ item.link }}" target="_blank"
+                            style="font-size: 0.8rem; color: var(--accent-blue);">Ver Enlace ↗</a>
+                    </td>
+                    <td style="padding: 1rem; font-size: 0.85rem; color: #6b7280;">{{ item.fecha }}</td>
+                    <td style="padding: 1rem;">
+                        <div style="display: flex; gap: 0.25rem;">
+                            <button class="btn btn-sm btn-secondary" title="Marcar Positivo"
+                                onclick="performMentionAction('{{ item.id }}', 'Positivo', '{{ item._source_file }}')">Pos</button>
+                            <button class="btn btn-sm btn-secondary" title="Marcar Neutro"
+                                onclick="performMentionAction('{{ item.id }}', 'Neutro', '{{ item._source_file }}')">Neu</button>
+                            <button class="btn btn-sm btn-secondary" title="Marcar Negativo"
+                                onclick="performMentionAction('{{ item.id }}', 'Negativo', '{{ item._source_file }}')">Neg</button>
+                            <button class="btn btn-sm btn-secondary" title="Marcar como Ruido"
+                                onclick="performMentionAction('{{ item.id }}', 'Ruido', '{{ item._source_file }}')">Ruido</button>
+                            <button class="btn btn-sm btn-secondary" title="Eliminar"
+                                onclick="performMentionAction('{{ item.id }}', 'delete', '{{ item._source_file }}')"
+                                style="color: #ef4444;">Elim</button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p style="padding: 2rem; text-align: center; color: #6b7280;">No se encontraron menciones para esta entidad.</p>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- Securely transfer JSON data from Flask to JS -->
+<script id="mentions-data" type="application/json">
+{{ mentions | tojson | safe }}
+</script>
+
+<script>
+    let allMentions = [];
+    try {
+        const dataElement = document.getElementById('mentions-data');
+        if (dataElement) {
+            allMentions = JSON.parse(dataElement.textContent) || [];
+        }
+    } catch (e) {
+        console.error("Error loading mentions data:", e);
+    }
+
+    let filteredMentions = [...allMentions];
+    let sentimentChart = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        try {
+            initSentimentChart();
+            initSourceChart();
+            applyInteractiveFilters();
+
+            // Grouping Logic listener
+            const groupBySelect = document.getElementById('groupBySelect');
+            if (groupBySelect) {
+                groupBySelect.addEventListener('change', (e) => {
+                    renderMentions(e.target.value);
+                });
+            }
+        } catch (e) {
+            console.error("Initialization error:", e);
+        }
+    });
+
+    function initSentimentChart() {
+        const ctx = document.getElementById('sentimentPieChart').getContext('2d');
+        sentimentChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: ['Positivo', 'Neutro', 'Negativo', 'Promoción', 'Ruido', 'Backlinks'],
+                datasets: [{
+                    data: [0, 0, 0, 0, 0, 0],
+                    backgroundColor: ['#22c55e', '#3b82f6', '#ef4444', '#8b5cf6', '#6b7280', '#f97316'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { usePointStyle: true, padding: 20 }
+                    }
+                }
+            }
+        });
+    }
+
+    function initSourceChart() {
+        const ctxSource = document.getElementById('sourceCategoriesChart');
+        if (ctxSource) {
+            new Chart(ctxSource, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Oficial (Redes)', 'Oficial (Blog)', 'Menciones Redes', 'Noticias Externas', 'Ruido'],
+                    datasets: [{
+                        data: [
+                            {{ stats.source_categories.get('OFICIAL_REDES', 0) }},
+                    {{ stats.source_categories.get('OFICIAL_BLOG', 0) }},
+                            {{ stats.source_categories.get('MENCIONES_REDES', 0) }},
+        {{ stats.source_categories.get('NOTICIAS_EXTERNAS', 0) }},
+        {{ stats.source_categories.get('RUIDO', 0) }}
+                        ],
+        backgroundColor: [
+            '#3b82f6', // Oficial Redes (Blue)
+            '#1e40af', // Oficial Blog (Dark Blue)
+            '#f97316', // Menciones Redes (Orange)
+            '#22c55e', // Noticias (Green)
+            '#6b7280'  // Ruido (Gray)
+        ],
+            borderWidth: 0
+    }]
+                },
+    options: {
+        responsive: true,
+            maintainAspectRatio: false,
+                plugins: {
+            legend: {
+                position: 'bottom',
+                    labels: { usePointStyle: true, padding: 20 }
+            }
+        },
+        cutout: '60%'
+    }
+            });
+        }
+    }
+
+    function applyInteractiveFilters() {
+        const showNormal = document.getElementById('toggleNormal').checked;
+        const showBacklinks = document.getElementById('toggleBacklinks').checked;
+        const showPos = document.getElementById('sentPos').checked;
+        const showNeu = document.getElementById('sentNeu').checked;
+        const showNeg = document.getElementById('sentNeg').checked;
+        const showProm = document.getElementById('sentProm').checked;
+        const showRuido = document.getElementById('sentRuido').checked;
+
+        filteredMentions = allMentions.filter(m => {
+            const isBacklink = m.is_backlink || false;
+            const typeMatch = (isBacklink && showBacklinks) || (!isBacklink && showNormal);
+
+            const sentiment = m.Etiqueta;
+            const sentimentMatch = (sentiment === 'Positivo' && showPos) ||
+                (sentiment === 'Neutro' && showNeu) ||
+                (sentiment === 'Negativo' && showNeg) ||
+                (sentiment === 'Promocion' && showProm) ||
+                (sentiment === 'Ruido' && showRuido);
+
+            return typeMatch && sentimentMatch;
+        });
+
+        updateUI();
+    }
+
+    function updateUI() {
+        // Calculate new stats
+        const counts = {
+            'Positivo': 0,
+            'Neutro': 0,
+            'Negativo': 0,
+            'Promocion': 0,
+            'Backlinks': 0,
+            'Total': filteredMentions.length
+        };
+
+        filteredMentions.forEach(m => {
+            if (m.is_backlink) {
+                counts['Backlinks']++;
+            } else if (counts[m.Etiqueta] !== undefined) {
+                counts[m.Etiqueta]++;
+            } else if (m.Etiqueta === 'Ruido') {
+                counts['Ruido']++;
+            } else if (m.Etiqueta === 'Promocion') {
+                counts['Promocion']++;
+            }
+        });
+
+        // Update Chart
+        if (sentimentChart) {
+            sentimentChart.data.datasets[0].data = [
+                counts['Positivo'],
+                counts['Neutro'],
+                counts['Negativo'],
+                counts['Promocion'],
+                counts['Ruido'],
+                counts['Backlinks']
+            ];
+            sentimentChart.update();
+        }
+
+        // Update Stats Labels
+        document.getElementById('countPos').textContent = counts['Positivo'];
+        document.getElementById('countNeu').textContent = counts['Neutro'];
+        document.getElementById('countNeg').textContent = counts['Negativo'];
+        document.getElementById('countPro').textContent = counts['Promocion'];
+        document.getElementById('countBL').textContent = counts['Backlinks'];
+        if (document.getElementById('countRuido')) {
+            document.getElementById('countRuido').textContent = counts['Ruido'];
+        }
+        document.getElementById('statTotal').textContent = counts['Total'];
+
+        const negRate = counts['Total'] > 0 ? (counts['Negativo'] / counts['Total'] * 100).toFixed(1) : 0;
+        document.getElementById('statNegativeRate').textContent = negRate + '%';
+
+        // Update Table
+        renderMentions(document.getElementById('groupBySelect').value);
+    }
+
+    function renderMentions(groupBy) {
+        const container = document.getElementById('mentionsContainer');
+        if (!container) return;
+
+        container.innerHTML = '';
+        if (filteredMentions.length === 0) {
+            container.innerHTML = '<p style="padding: 2rem; text-align: center; color: #6b7280;">No se encontraron resultados con los filtros aplicados.</p>';
+            return;
+        }
+
+        if (groupBy === 'none') {
+            container.appendChild(createTable(filteredMentions));
+        } else {
+            const groups = {};
+            filteredMentions.forEach(m => {
+                const key = m[groupBy] || 'Desconocido';
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(m);
+            });
+
+            Object.keys(groups).sort().forEach(key => {
+                const section = document.createElement('div');
+                section.style.marginBottom = '2rem';
+
+                let badgeHtml = key;
+                if (groupBy === 'Etiqueta') {
+                    let colorClass = 'neutral';
+                    if (key === 'Positivo') colorClass = 'positive';
+                    else if (key === 'Negativo') colorClass = 'negative';
+                    else if (key === 'Promocion') colorClass = 'promotion';
+                    else if (key === 'Ruido') colorClass = 'gray';
+
+                    badgeHtml = `<span class="badge ${colorClass}">${key}</span>`;
+                }
+
+                section.innerHTML = `
+                    <h4 style="color: #565f89; margin-bottom: 0.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.25rem;">
+                        ${badgeHtml} <span style="font-size:0.8rem; color:#9ca3af; font-weight:normal;">(${groups[key].length})</span>
+                    </h4>
+                `;
+                section.appendChild(createTable(groups[key], false));
+                container.appendChild(section);
+            });
+        }
+    }
+
+    function createTable(data, showHeaders = true) {
+        const table = document.createElement('table');
+        table.className = 'table';
+        table.style.width = '100%';
+
+        if (showHeaders) {
+            const thead = document.createElement('thead');
+            thead.innerHTML = `
+                <tr style="text-align: left; color: #6b7280; border-bottom: 1px solid #eee;">
+                    <th style="padding: 1rem;">Fuente</th>
+                    <th style="padding: 1rem;">Sentimiento</th>
+                    <th style="padding: 1rem;">Fragmento</th>
+                    <th style="padding: 1rem;">Fecha</th>
+                    <th style="padding: 1rem; width: 300px;">Acciones</th>
+                </tr>
+            `;
+            table.appendChild(thead);
+        }
+
+        const tbody = document.createElement('tbody');
+        data.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #f9f9f9';
+
+            const sentimentClass = item.Etiqueta === 'Positivo' ? 'positive' :
+                (item.Etiqueta === 'Negativo' ? 'negative' :
+                    (item.Etiqueta === 'Promocion' ? 'promotion' :
+                        (item.Etiqueta === 'Ruido' ? 'gray' : 'neutral')));
+            const snippet = (item.comentario || '').substring(0, 100);
+            const isBacklink = item.id && String(item.id).startsWith('backlink_');
+            const backlinkBadge = isBacklink ? `<span class="badge" style="background: rgba(122, 162, 247, 0.1); color: #7aa2f7; border: 1px solid rgba(122, 162, 247, 0.2); font-size: 10px; margin-right: 5px;">BACKLINK</span>` : '';
+
+            tr.innerHTML = `
+                <td style="padding: 1rem;">${backlinkBadge}<span class="badge">${item.Categoria_Fuente || item.Fuente}</span></td>
+                <td style="padding: 1rem;"><span class="badge ${sentimentClass}">${item.Etiqueta}</span></td>
+                <td style="padding: 1rem; max-width: 400px;">
+                    <div style="font-size: 0.9rem;">${snippet}...</div>
+                    <a href="${item.link}" target="_blank" style="font-size: 0.8rem; color: var(--accent-blue);">Ver Enlace ↗</a>
+                </td>
+                <td style="padding: 1rem; font-size: 0.85rem; color: #6b7280;">${item.fecha}</td>
+                <td style="padding: 1rem;">
+                    <div style="display: flex; gap: 0.25rem;">
+                        <button class="btn btn-sm btn-secondary" onclick="performMentionAction('${item.id}', 'Positivo', '${item._source_file}')">Pos</button>
+                        <button class="btn btn-sm btn-secondary" onclick="performMentionAction('${item.id}', 'Neutro', '${item._source_file}')">Neu</button>
+                        <button class="btn btn-sm btn-secondary" onclick="performMentionAction('${item.id}', 'Negativo', '${item._source_file}')">Neg</button>
+                        <button class="btn btn-sm btn-secondary" onclick="performMentionAction('${item.id}', 'Ruido', '${item._source_file}')">Ruido</button>
+                        <button class="btn btn-sm btn-secondary" onclick="performMentionAction('${item.id}', 'delete', '${item._source_file}')" style="color: #ef4444;">Elim</button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        return table;
+    }
+</script>
+{% endblock %}

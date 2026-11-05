@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block title %}Detalles: {{ category }}{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div class="header-title">
+        <a href="{{ url_for('spiderfoot_scan', scan_name=scan_name) }}" class="back-link">← Volver al Reporte</a>
+        <h1>{{ category }}</h1>
+        <p class="subtitle">Detalles de hallazgos en {{ scan_name }}</p>
+    </div>
+</div>
+
+<div class="card full-width">
+    <div class="card-body">
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Valor</th>
+                        <th>Fuentes</th>
+                        <th>Módulos</th>
+                        <th>Riesgo (DREAD)</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in data %}
+                    <tr>
+                        <td style="font-family: monospace; font-size: 0.9rem;">
+                            {{ item.display_value or item.value }}
+                            {% if item.dread %}
+                            <div style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">
+                                <span title="Damage">D:{{ item.dread.d }}</span> |
+                                <span title="Reproducibility">R:{{ item.dread.r }}</span> |
+                                <span title="Exploitability">E:{{ item.dread.e }}</span> |
+                                <span title="Affected Users">A:{{ item.dread.a }}</span> |
+                                <span title="Discoverability">D:{{ item.dread.disc }}</span>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% for src in item.sources %}
+                            <span class="badge" style="background: rgba(255,255,255,0.1); font-size: 0.75rem;">{{ src
+                                }}</span>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            {% for mod in item.modules %}
+                            <span class="badge"
+                                style="background: rgba(59, 130, 246, 0.1); color: #3b82f6; font-size: 0.75rem;">{{ mod
+                                }}</span>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            {% if item.dread %}
+                            {% set score = item.dread.score %}
+                            {% set color = '#10b981' %}
+                            {% if score > 8 %}{% set color = '#ef4444' %}
+                            {% elif score > 6 %}{% set color = '#f59e0b' %}
+                            {% endif %}
+                            <span class="badge"
+                                style="background: {{ color }}20; color: {{ color }}; border: 1px solid {{ color }};">
+                                {{ item.dread.severity }} ({{ "%.1f"|format(score) }})
+                            </span>
+                            {% else %}
+                            <span class="badge" style="background: rgba(148, 163, 184, 0.1); color: #94a3b8;">Sin
+                                Calificar</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-secondary"
+                                onclick="openDreadModal('{{ item.value }}', '{{ category }}', '{{ item.hash }}', {{ item.dread|tojson|safe if item.dread else 'null' }})">
+                                ⚖️ Calificar
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- DREAD Modal -->
+<div id="dreadModal" class="modal-overlay">
+    <div class="modal-container" style="max-width: 800px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Evaluación de Riesgo DREAD</h3>
+            <button class="modal-close" onclick="closeDreadModal()">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="grid-container" style="grid-template-columns: 1fr 1fr; gap: 2rem;">
+                <!-- Form -->
+                <div>
+                    <h4 id="modalFindingValue"
+                        style="margin-bottom: 1rem; color: var(--accent-blue); word-break: break-all;"></h4>
+                    <input type="hidden" id="dreadHash">
+                    <input type="hidden" id="dreadCategory">
+
+                    <div class="form-group">
+                        <label class="form-label">Damage (Daño) <span id="val_d"
+                                style="float:right; font-weight:bold;">1</span></label>
+                        <input type="range" id="range_d" min="1" max="10" value="1" class="form-range"
+                            oninput="updateDreadCalc()">
+                        <small style="color: #6b7280; font-size: 0.75rem;">Impacto potencial en la organización.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Reproducibility <span id="val_r"
+                                style="float:right; font-weight:bold;">1</span></label>
+                        <input type="range" id="range_r" min="1" max="10" value="1" class="form-range"
+                            oninput="updateDreadCalc()">
+                        <small style="color: #6b7280; font-size: 0.75rem;">Facilidad para replicar el ataque.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Exploitability <span id="val_e"
+                                style="float:right; font-weight:bold;">1</span></label>
+                        <input type="range" id="range_e" min="1" max="10" value="1" class="form-range"
+                            oninput="updateDreadCalc()">
+                        <small style="color: #6b7280; font-size: 0.75rem;">Esfuerzo necesario para explotar.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Affected Users <span id="val_a"
+                                style="float:right; font-weight:bold;">1</span></label>
+                        <input type="range" id="range_a" min="1" max="10" value="1" class="form-range"
+                            oninput="updateDreadCalc()">
+                        <small style="color: #6b7280; font-size: 0.75rem;">Alcance de usuarios afectados.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Discoverability <span id="val_disc"
+                                style="float:right; font-weight:bold;">1</span></label>
+                        <input type="range" id="range_disc" min="1" max="10" value="1" class="form-range"
+                            oninput="updateDreadCalc()">
+                        <small style="color: #6b7280; font-size: 0.75rem;">Facilidad para encontrar la
+                            vulnerabilidad.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Notas del Analista</label>
+                        <textarea id="dreadNotes" class="form-input" rows="3"
+                            placeholder="Contexto adicional..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Visualization -->
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <div style="width: 100%; max-width: 300px;">
+                        <canvas id="dreadChart"></canvas>
+                    </div>
+
+                    <div class="card" style="margin-top: 1.5rem; width: 100%; text-align: center; padding: 1rem;">
+                        <div style="font-size: 0.8rem; color: #6b7280; text-transform: uppercase;">Puntaje Final</div>
+                        <div id="finalScore" style="font-size: 2.5rem; font-weight: 800; color: var(--fg-dark);">1.0
+                        </div>
+                        <div id="finalSeverity" class="badge"
+                            style="display: inline-block; margin-top: 0.5rem; font-size: 1rem;">BAJO</div>
+                    </div>
+
+                    <button id="btnEscalate" class="btn btn-danger full-width" style="margin-top: 1rem; display: none;">
+                        🚀 Escalar a Ing. Rodolfo
+                    </button>
+
+                    <button class="btn btn-primary full-width" onclick="saveDreadScore()" style="margin-top: 1rem;">
+                        Guardar Evaluación
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .form-range {
+        width: 100%;
+        margin: 0.5rem 0;
+        accent-color: var(--accent-blue);
+    }
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let dreadChart = null;
+
+    function openDreadModal(value, category, hash, existingData) {
+        document.getElementById('dreadModal').style.display = 'flex';
+        document.getElementById('modalFindingValue').textContent = value;
+        document.getElementById('dreadCategory').value = category;
+        // Check if value is complex (contains Ports:)
+        const realValue = value.includes('(Ports:') ? value.split(' ')[0] : value;
+        
+        // Pre-fill or default
+        const d = existingData ? existingData.d : 1;
+        const r = existingData ? existingData.r : 1;
+        const e = existingData ? existingData.e : 1;
+        const a = existingData ? existingData.a : 1;
+        const disc = existingData ? existingData.disc : 1;
+        const notes = existingData ? existingData.notes : '';
+
+        document.getElementById('range_d').value = d;
+        document.getElementById('range_r').value = r;
+        document.getElementById('range_e').value = e;
+        document.getElementById('range_a').value = a;
+        document.getElementById('range_disc').value = disc;
+        document.getElementById('dreadNotes').value = notes;
+
+        updateDreadCalc();
+        initChart(d, r, e, a, disc);
+    }
+
+    function closeDreadModal() {
+        document.getElementById('dreadModal').style.display = 'none';
+    }
+
+    function updateDreadCalc() {
+        const d = parseInt(document.getElementById('range_d').value);
+        const r = parseInt(document.getElementById('range_r').value);
+        const e = parseInt(document.getElementById('range_e').value);
+        const a = parseInt(document.getElementById('range_a').value);
+        const disc = parseInt(document.getElementById('range_disc').value);
+
+        // Update Labels
+        document.getElementById('val_d').textContent = d;
+        document.getElementById('val_r').textContent = r;
+        document.getElementById('val_e').textContent = e;
+        document.getElementById('val_a').textContent = a;
+        document.getElementById('val_disc').textContent = disc;
+
+        // Calc Score
+        const score = (d + r + e + a + disc) / 5.0;
+        const scoreEl = document.getElementById('finalScore');
+        const badgeEl = document.getElementById('finalSeverity');
+        const btnEscalate = document.getElementById('btnEscalate');
+
+        scoreEl.textContent = score.toFixed(1);
+        
+        let severity = 'MEDIO/BAJO';
+        let color = '#10b981'; // green
+
+        if (score > 8.0) {
+            severity = 'CRÍTICO';
+            color = '#ef4444'; // red
+            btnEscalate.style.display = 'block';
+        } else if (score > 6.0) {
+            severity = 'ALTO';
+            color = '#f59e0b'; // orange
+            btnEscalate.style.display = 'none';
+        } else {
+            btnEscalate.style.display = 'none';
+        }
+
+        badgeEl.textContent = severity;
+        badgeEl.style.background = color + '20';
+        badgeEl.style.color = color;
+        badgeEl.style.border = `1px solid ${color}`;
+
+        // Update Chart
+        if (dreadChart) {
+            dreadChart.data.datasets[0].data = [d, r, e, a, disc];
+            dreadChart.update();
+        }
+    }
+
+    function initChart(d, r, e, a, disc) {
+        const ctx = document.getElementById('dreadChart').getContext('2d');
+        if (dreadChart) dreadChart.destroy();
+
+        dreadChart = new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: ['Damage', 'Reproducibility', 'Exploitability', 'Affected Users', 'Discoverability'],
+                datasets: [{
+                    label: 'Perfil de Riesgo',
+                    data: [d, r, e, a, disc],
+                    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                    borderColor: 'rgba(239, 68, 68, 1)',
+                    pointBackgroundColor: 'rgba(239, 68, 68, 1)',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                scales: {
+                    r: {
+                        angleLines: { color: 'rgba(255, 255, 255, 0.1)' },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                        pointLabels: { color: '#9ca3af', font: { size: 10 } },
+                        ticks: { display: false, max: 10, min: 0 }
+                    }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    async function saveDreadScore() {
+        const scanName = "{{ scan_name }}";
+        const category = document.getElementById('dreadCategory').value;
+        // Use the display value or handle parsing? 
+        // Simplest: use the text content from modal title which was set from onclick
+        const value = document.getElementById('modalFindingValue').textContent;
+        // Clean value if it has ports info separate?
+        // Backend stores raw value. But UI shows "IP (Ports: ...)"
+        // If we want key consistency, we must ensure we send the same keys.
+        // For now trusting the value passed to modal.
+
+        const payload = {
+            scan_name: scanName,
+            category: category,
+            value: value.includes('(Ports:') ? value.split(' ')[0] : value, // specific fix for IP+Ports
+            damage: document.getElementById('range_d').value,
+            reproducibility: document.getElementById('range_r').value,
+            exploitability: document.getElementById('range_e').value,
+            affected_users: document.getElementById('range_a').value,
+            discoverability: document.getElementById('range_disc').value,
+            notes: document.getElementById('dreadNotes').value
+        };
+
+        try {
+            const response = await fetch('/spiderfoot/risk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                alert('Evaluación guardada correctamente');
+                location.reload();
+            } else {
+                alert('Error al guardar: ' + result.error);
+            }
+        } catch (e) {
+            alert('Error de conexión');
+        }
+    }
+</script>
+{% endblock %}

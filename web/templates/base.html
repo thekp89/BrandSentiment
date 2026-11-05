@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dashboard{% endblock %} - Brand Sentiment Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='js/vis-network.min.js') }}"></script>
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-logo">
+                <img src="{{ url_for('static', filename='img/logo_white.png') }}" alt="Brand Sentinel"
+                    style="max-width: 100%; height: auto;">
+            </div>
+
+            <div class="nav-section">
+                <p class="nav-section-title">Análisis Activo</p>
+                <div class="module-switcher">
+                    <select id="moduleSelector" class="form-select" onchange="switchModule(this.value)"
+                        style="background: var(--bg-medium); color: white; border-color: rgba(255,255,255,0.1);">
+                        <option value="sentiment" {% if active_module=='sentiment' or not active_module %}selected{%
+                            endif %}>Análisis de Sentimiento</option>
+                        <option value="forensics" {% if active_module=='forensics' %}selected{% endif %}>Análisis
+                            Forense</option>
+                        <option value="spiderfoot" {% if active_module=='spiderfoot' %}selected{% endif %}>Análisis
+                            SpiderFoot</option>
+                    </select>
+                </div>
+            </div>
+
+            {% if active_module == 'sentiment' or not active_module %}
+            <!-- Sentiment Module Nav -->
+            <div class="nav-section">
+                <p class="nav-section-title">Tablero Principal</p>
+                <a href="{{ url_for('dashboard') }}{% if selected_scan %}?scan={{ selected_scan }}{% endif %}"
+                    class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    <span>Resumen General</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <p class="nav-section-title">Análisis Detallado</p>
+                <a href="{{ url_for('risk_page') }}"
+                    class="nav-link {% if request.endpoint == 'risk_page' %}active{% endif %}">
+                    <span>Evaluación de Riesgos</span>
+                </a>
+                <a href="{{ url_for('entities_page') }}"
+                    class="nav-link {% if request.endpoint == 'entities_page' %}active{% endif %}">
+                    <span>Por Entidad</span>
+                </a>
+                <a href="{{ url_for('sources_page') }}"
+                    class="nav-link {% if request.endpoint == 'sources_page' %}active{% endif %}">
+                    <span>Por Fuente</span>
+                </a>
+                <a href="{{ url_for('data_explorer') }}"
+                    class="nav-link {% if request.endpoint == 'data_explorer' %}active{% endif %}">
+                    <span>Explorador de Datos</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <p class="nav-section-title">Acciones</p>
+                <a href="{{ url_for('scan_page') }}"
+                    class="nav-link {% if request.endpoint == 'scan_page' %}active{% endif %}">
+                    <span>Nuevo Escaneo</span>
+                </a>
+                <a href="{{ url_for('results_page') }}"
+                    class="nav-link {% if request.endpoint == 'results_page' %}active{% endif %}">
+                    <span>Resultados</span>
+                </a>
+                <a href="{{ url_for('report_dashboard') }}"
+                    class="nav-link {% if request.endpoint == 'report_dashboard' %}active{% endif %}">
+                    <span>📄 Generador de Reportes</span>
+                </a>
+            </div>
+            {% elif active_module == 'spiderfoot' %}
+            <!-- SpiderFoot Module Nav -->
+            <div class="nav-section">
+                <p class="nav-section-title">Análisis SpiderFoot</p>
+                <a href="{{ url_for('spiderfoot_dashboard') }}"
+                    class="nav-link {% if request.endpoint == 'spiderfoot_dashboard' %}active{% endif %}">
+                    <span>Mis Escaneos</span>
+                </a>
+            </div>
+
+            {% if scan_name and active_module == 'spiderfoot' %}
+            <div class="nav-section">
+                <p class="nav-section-title">Escaneo Activo</p>
+                <div style="font-size: 0.75rem; color: #94a3b8; padding: 0 1rem 0.5rem; word-break: break-all;">
+                    {{ scan_name|slice(0, 25) }}...
+                </div>
+                <a href="{{ url_for('spiderfoot_scan', scan_name=scan_name) }}"
+                    class="nav-link {% if request.endpoint == 'spiderfoot_scan' %}active{% endif %}">
+                    <span>📊 Resumen</span>
+                </a>
+                <a href="{{ url_for('spiderfoot_graph', scan_name=scan_name) }}"
+                    class="nav-link {% if request.endpoint == 'spiderfoot_graph' %}active{% endif %}">
+                    <span>🕸️ Grafo de Red</span>
+                </a>
+                <a href="#" class="nav-link" style="opacity: 0.5; cursor: not-allowed;" title="Próximamente">
+                    <span>📋 Detalles (Próx.)</span>
+                </a>
+            </div>
+            {% endif %}
+            {% else %}
+            <!-- Backlinks Module Nav -->
+            <div class="nav-section">
+                <p class="nav-section-title">Análisis de Backlinks</p>
+                <a href="{{ url_for('forensics_dashboard') }}"
+                    class="nav-link {% if request.endpoint == 'forensics_dashboard' %}active{% endif %}">
+                    <span>Dashboard de Backlinks</span>
+                </a>
+            </div>
+            <div class="nav-section">
+                <p class="nav-section-title">Configuración</p>
+                <a href="{{ url_for('forensics_settings') }}"
+                    class="nav-link {% if request.endpoint == 'forensics_settings' %}active{% endif %}">
+                    <span>Configuración KRI</span>
+                </a>
+            </div>
+            {% endif %}
+
+            <!-- Scan Selector (Only for sentiment) -->
+            {% if active_module == 'sentiment' or not active_module %}
+            <div class="scan-selector">
+                <p class="nav-section-title">Seleccionar Escaneo</p>
+                <select id="scanSelector" class="form-select" onchange="changeScan(this.value)">
+                    {% for scan in recent_scans %}
+                    <option value="{{ scan.name }}" {% if selected_scan==scan.name or (not selected_scan and loop.first)
+                        %}selected{% endif %}>
+                        {{ scan.date }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+
+            <!-- User Auth -->
+            <div class="nav-section" style="margin-top: auto; padding-top: 2rem;">
+                <p class="nav-section-title">Usuario</p>
+                <div style="padding: 0 1rem 0.5rem; color: #94a3b8; font-size: 0.8rem;">
+                    👤 admin
+                </div>
+                <a href="{{ url_for('logout') }}" class="nav-link" style="color: #ef4444 !important;">
+                    <span>Cerrar Sesión</span>
+                </a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <div class="top-bar">
+                <div class="status-indicator">
+                    <span
+                        class="status-dot {% if scan_status and scan_status.running %}active{% else %}idle{% endif %}"></span>
+                    <span>{% if scan_status and scan_status.running %}Análisis en Vivo{% else %}Listo{% endif %}</span>
+                </div>
+                <span class="version">v1.0.4</span>
+            </div>
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Drill-down Modal -->
+    <div id="drillDownModal" class="modal-overlay">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3 class="modal-title" id="drillDownTitle">Detalles del Análisis</h3>
+                <button class="modal-close" onclick="closeDrillDown()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="drill-down-grid">
+                    <div class="drill-down-table-container">
+                        <table class="data-table" id="drillDownTable">
+                            <thead>
+                                <tr>
+                                    <th>Fuente</th>
+                                    <th>Fragmento</th>
+                                    <th>Fecha</th>
+                                </tr>
+                            </thead>
+                            <tbody id="drillDownTableBody">
+                                <!-- Data will be loaded here -->
+                            </tbody>
+                        </table>
+                        <div id="drillDownLoading" style="display: none; text-align: center; padding: 2rem;">
+                            <div class="status-dot active" style="margin: 0 auto 1rem;"></div>
+                            <p>Cargando menciones...</p>
+                        </div>
+                    </div>
+                    <div class="drill-down-detail" id="drillDownDetail">
+                        <div class="detail-empty">
+                            <p>Selecciona una mención de la tabla para ver detalles completos</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchModule(module) {
+            if (module === 'sentiment') {
+                window.location.href = "{{ url_for('dashboard') }}";
+            } else if (module === 'forensics') {
+                window.location.href = "{{ url_for('forensics_dashboard') }}";
+            } else if (module === 'spiderfoot') {
+                window.location.href = "{{ url_for('spiderfoot_dashboard') }}";
+            }
+        }
+
+        function changeScan(scanName) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('scan', scanName);
+            window.location.href = url.toString();
+        }
+
+        function closeDrillDown() {
+            document.getElementById('drillDownModal').style.display = 'none';
+        }
+
+        async function openDrillDown(scanName, filterType, filterValue, sentiment) {
+            const modal = document.getElementById('drillDownModal');
+            const tableBody = document.getElementById('drillDownTableBody');
+            const loading = document.getElementById('drillDownLoading');
+            const detailPanel = document.getElementById('drillDownDetail');
+            const title = document.getElementById('drillDownTitle');
+
+            title.innerText = `Menciones ${sentiment} para ${filterValue}`;
+            tableBody.innerHTML = '';
+            detailPanel.innerHTML = '<div class="detail-empty"><p>Selecciona una mención para ver detalles</p></div>';
+            loading.style.display = 'block';
+            modal.style.display = 'flex';
+
+            try {
+                const url = `/api/explorer/${scanName}?${filterType}=${encodeURIComponent(filterValue)}&sentiment=${encodeURIComponent(sentiment)}`;
+                const response = await fetch(url);
+                const result = await response.json();
+
+                loading.style.display = 'none';
+
+                if (result.data && result.data.length > 0) {
+                    result.data.forEach(item => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'clickable-row';
+                        const snippet = item.comentario ? (item.comentario.substring(0, 60) + '...') : 'Sin texto';
+
+                        tr.innerHTML = `
+                            <td><span class="badge" style="background:#f1f5f9; color:#6b7280; padding:2px 6px; border-radius:4px; font-size:10px;">${item.Fuente || 'Desconocido'}</span></td>
+                            <td style="font-size: 0.85rem;">${snippet}</td>
+                            <td style="font-size: 0.8rem; color:#9ca3af;">${item.fecha || ''}</td>
+                        `;
+
+                        tr.onclick = () => {
+                            // Highlight selected row
+                            document.querySelectorAll('.clickable-row').forEach(r => r.classList.remove('selected'));
+                            tr.classList.add('selected');
+                            showMentionDetail(item);
+                        };
+
+                        tableBody.appendChild(tr);
+                    });
+                } else {
+                    tableBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#9ca3af; padding:2rem;">No se encontraron menciones.</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error fetching drill-down data:', error);
+                loading.style.display = 'none';
+                tableBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--accent-red); padding:2rem;">Error cargando datos.</td></tr>';
+            }
+        }
+
+        function showMentionDetail(item) {
+            const panel = document.getElementById('drillDownDetail');
+            let listHtml = '<div class="detail-list">';
+
+            // Critical fields first
+            const fields = [
+                { key: 'Fuente', label: 'Fuente' },
+                { key: 'Entidad', label: 'Entidad' },
+                { key: 'Etiqueta', label: 'Sentimiento' },
+                { key: 'fecha', label: 'Fecha' },
+                { key: 'usuario', label: 'Usuario' },
+                { key: 'link', label: 'URL', isLink: true },
+                { key: 'comentario', label: 'Comentario Completo', isFullText: true },
+                { key: 'Nivel_Riesgo', label: 'Nivel de Riesgo' },
+                { key: 'AI_Category', label: 'Categoría IA' },
+                { key: 'AI_Justification', label: 'Justificación IA' }
+            ];
+
+            fields.forEach(f => {
+                if (item[f.key]) {
+                    listHtml += `
+                        <div class="detail-item">
+                            <div class="detail-key">${f.label}</div>
+                            <div class="detail-value">
+                                ${f.isLink ? `<a href="${item[f.key]}" target="_blank" style="color:var(--accent-blue);">${item[f.key]}</a>` : item[f.key]}
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            // Add other fields not in the whitelist
+            const knownKeys = fields.map(f => f.key);
+            Object.keys(item).forEach(key => {
+                if (!knownKeys.includes(key) && !key.startsWith('_') && item[key]) {
+                    listHtml += `
+                        <div class="detail-item">
+                            <div class="detail-key">${key}</div>
+                            <div class="detail-value">${item[key]}</div>
+                        </div>
+                    `;
+                }
+            });
+
+            listHtml += '</div>';
+
+            // Management Buttons
+            listHtml += `
+                <div class="detail-actions" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #eee; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button class="btn btn-secondary btn-sm" onclick="performMentionAction('${item.id}', 'Ruido', '${item._source_file}')">Silenciar</button>
+                    <button class="btn btn-secondary btn-sm" onclick="performMentionAction('${item.id}', 'Positivo', '${item._source_file}')">Positivo</button>
+                    <button class="btn btn-secondary btn-sm" onclick="performMentionAction('${item.id}', 'Negativo', '${item._source_file}')">Negativo</button>
+                    <div style="flex-grow: 1;"></div>
+                    <button class="btn btn-danger btn-sm" onclick="performMentionAction('${item.id}', 'delete', '${item._source_file}')" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);">Eliminar</button>
+                </div>
+            `;
+
+            panel.innerHTML = listHtml;
+        }
+
+        async function performMentionAction(mentionId, action, sourceFile) {
+            const scanName = new URLSearchParams(window.location.search).get('scan') || '{{ stats.scan_name if stats else "" }}';
+
+            if (action === 'delete' && !confirm('¿Estás seguro de que quieres eliminar esta mención? Esto modificará el archivo de reporte.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/mention/action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        scan_name: scanName,
+                        _source_file: sourceFile,
+                        id: mentionId,
+                        action: action
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    alert(result.message);
+                    // Refresh the page to update all stats and lists
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error performing action:', error);
+                alert('Error de conexión');
+            }
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function (event) {
+            const modal = document.getElementById('drillDownModal');
+            if (event.target == modal) {
+                closeDrillDown();
+            }
+        }
+    </script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

@@ -1,0 +1,34 @@
+# Indicadores de Compromiso y Ataque
+hackeado
+hacked
+vulnerado
+filtración
+leak
+brecha
+database
+base de datos
+dump
+sql injection
+sqli
+xss
+cross-site scripting
+amenaza
+ransomware
+encriptado
+virus
+malware
+phishing
+suplantación
+
+# Indicadores de Fuga de Información (Data Leak)
+contraseña
+password
+admin
+root
+credenciales
+acceso no autorizado
+pastebin
+github
+gitlab
+confidencial
+privado
